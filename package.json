@@ -1,0 +1,26 @@
+{
+  "name": "sgcs-devops",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:init": "node scripts/init-db.mjs",
+    "verify:flow": "node scripts/verify-flow.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "latest",
+    "lucide-react": "latest",
+    "mysql2": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "latest"
+  }
+}

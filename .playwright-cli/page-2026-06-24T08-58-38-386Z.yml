@@ -1,0 +1,131 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e24] [cursor=pointer]:
+    - img [ref=e25]
+  - alert [ref=e28]
+  - generic [ref=e290]:
+    - complementary [ref=e291]:
+      - link "S SGCS DevOps Control agil de cambios" [ref=e292] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e293]: S
+        - generic [ref=e294]:
+          - strong [ref=e295]: SGCS DevOps
+          - generic [ref=e296]: Control agil de cambios
+      - navigation "Principal" [ref=e297]:
+        - link "Dashboard" [ref=e298] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e299]
+          - generic [ref=e304]: Dashboard
+        - link "Crear usuarios" [ref=e305] [cursor=pointer]:
+          - /url: /admin/users
+          - img [ref=e306]
+          - generic [ref=e309]: Crear usuarios
+        - link "Crear proyectos" [ref=e310] [cursor=pointer]:
+          - /url: /admin/projects
+          - img [ref=e311]
+          - generic [ref=e313]: Crear proyectos
+        - link "Asignar roles" [ref=e314] [cursor=pointer]:
+          - /url: /admin/assignments
+          - img [ref=e315]
+          - generic [ref=e327]: Asignar roles
+        - link "Equipos de trabajo" [ref=e328] [cursor=pointer]:
+          - /url: /admin/teams
+          - img [ref=e329]
+          - generic [ref=e339]: Equipos de trabajo
+        - link "Crear roles" [ref=e340] [cursor=pointer]:
+          - /url: /admin/roles
+          - img [ref=e341]
+          - generic [ref=e344]: Crear roles
+      - generic [ref=e345]:
+        - generic [ref=e346]:
+          - img [ref=e347]
+          - generic [ref=e351]:
+            - strong [ref=e352]: Codex Admin Temporal
+            - generic [ref=e353]: codex-admin-test@sgcs.local
+        - button "Salir" [ref=e355] [cursor=pointer]:
+          - img [ref=e356]
+          - text: Salir
+    - main [ref=e359]:
+      - generic [ref=e360]:
+        - generic [ref=e361]:
+          - paragraph [ref=e362]: Sistema de Gestion de la Configuracion de Software
+          - heading "nuevoproyecto" [level=1] [ref=e363]
+          - paragraph [ref=e364]: Agile / Scrum · 20 jun. 2026 - 30 jun. 2026
+        - generic [ref=e366]:
+          - combobox [ref=e367]:
+            - option "nuevoproyecto" [selected]
+            - option "ProbandoProyecto"
+            - option "Proyecto 1"
+          - button "Abrir" [ref=e368] [cursor=pointer]
+      - generic [ref=e369]:
+        - generic [ref=e371]:
+          - paragraph [ref=e372]: Herencia de vistas
+          - heading "Crear rol" [level=2] [ref=e373]
+        - generic [ref=e374]:
+          - generic [ref=e375]:
+            - generic [ref=e376]: Nombre del rol
+            - textbox "Nombre del rol" [ref=e377]:
+              - /placeholder: Analista QA Senior
+          - generic [ref=e378]:
+            - generic [ref=e379]: Codigo
+            - textbox "Codigo" [ref=e380]:
+              - /placeholder: ANALISTA_QA_SENIOR
+          - generic [ref=e381]:
+            - generic [ref=e382]: Heredar vistas de
+            - combobox "Heredar vistas de" [ref=e383]:
+              - option "Solicitante" [selected]
+              - option "Jefe de proyectos"
+              - option "CCB"
+              - option "Lider tecnico"
+              - option "Desarrollador"
+              - option "QA"
+          - generic [ref=e384]:
+            - generic [ref=e385]: Descripcion
+            - textbox "Descripcion" [ref=e386]
+          - button "Crear rol" [ref=e388] [cursor=pointer]
+      - generic [ref=e389]:
+        - heading "Roles disponibles" [level=2] [ref=e392]
+        - table [ref=e394]:
+          - rowgroup [ref=e395]:
+            - row "Rol Codigo Vista heredada Tipo Estado" [ref=e396]:
+              - columnheader "Rol" [ref=e397]
+              - columnheader "Codigo" [ref=e398]
+              - columnheader "Vista heredada" [ref=e399]
+              - columnheader "Tipo" [ref=e400]
+              - columnheader "Estado" [ref=e401]
+          - rowgroup [ref=e402]:
+            - row "CCB CCB CCB Predefinido Activo" [ref=e403]:
+              - cell "CCB" [ref=e404]
+              - cell "CCB" [ref=e405]
+              - cell "CCB" [ref=e406]
+              - cell "Predefinido" [ref=e407]
+              - cell "Activo" [ref=e408]
+            - row "Desarrollador DESARROLLADOR Desarrollador Predefinido Activo" [ref=e409]:
+              - cell "Desarrollador" [ref=e410]
+              - cell "DESARROLLADOR" [ref=e411]
+              - cell "Desarrollador" [ref=e412]
+              - cell "Predefinido" [ref=e413]
+              - cell "Activo" [ref=e414]
+            - row "Jefe de proyectos JEFE_PROYECTO Jefe de proyectos Predefinido Activo" [ref=e415]:
+              - cell "Jefe de proyectos" [ref=e416]
+              - cell "JEFE_PROYECTO" [ref=e417]
+              - cell "Jefe de proyectos" [ref=e418]
+              - cell "Predefinido" [ref=e419]
+              - cell "Activo" [ref=e420]
+            - row "Lider tecnico LIDER_TECNICO Lider tecnico Predefinido Activo" [ref=e421]:
+              - cell "Lider tecnico" [ref=e422]
+              - cell "LIDER_TECNICO" [ref=e423]
+              - cell "Lider tecnico" [ref=e424]
+              - cell "Predefinido" [ref=e425]
+              - cell "Activo" [ref=e426]
+            - row "QA QA QA Predefinido Activo" [ref=e427]:
+              - cell "QA" [ref=e428]
+              - cell "QA" [ref=e429]
+              - cell "QA" [ref=e430]
+              - cell "Predefinido" [ref=e431]
+              - cell "Activo" [ref=e432]
+            - row "Solicitante SOLICITANTE Solicitante Predefinido Activo" [ref=e433]:
+              - cell "Solicitante" [ref=e434]
+              - cell "SOLICITANTE" [ref=e435]
+              - cell "Solicitante" [ref=e436]
+              - cell "Predefinido" [ref=e437]
+              - cell "Activo" [ref=e438]

@@ -1,0 +1,116 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e24] [cursor=pointer]:
+    - img [ref=e25]
+  - alert [ref=e28]
+  - generic [ref=e29]:
+    - complementary [ref=e30]:
+      - link "S SGCS DevOps Control agil de cambios" [ref=e31] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e32]: S
+        - generic [ref=e33]:
+          - strong [ref=e34]: SGCS DevOps
+          - generic [ref=e35]: Control agil de cambios
+      - navigation "Principal" [ref=e36]:
+        - link "Dashboard" [ref=e37] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e38]
+          - generic [ref=e43]: Dashboard
+        - link "Crear usuarios" [ref=e44] [cursor=pointer]:
+          - /url: /admin/users
+          - img [ref=e45]
+          - generic [ref=e48]: Crear usuarios
+        - link "Crear proyectos" [ref=e49] [cursor=pointer]:
+          - /url: /admin/projects
+          - img [ref=e50]
+          - generic [ref=e52]: Crear proyectos
+        - link "Asignar roles" [ref=e53] [cursor=pointer]:
+          - /url: /admin/assignments
+          - img [ref=e54]
+          - generic [ref=e66]: Asignar roles
+        - link "Equipos de trabajo" [ref=e67] [cursor=pointer]:
+          - /url: /admin/teams
+          - img [ref=e68]
+          - generic [ref=e78]: Equipos de trabajo
+        - link "Crear roles" [ref=e79] [cursor=pointer]:
+          - /url: /admin/roles
+          - img [ref=e80]
+          - generic [ref=e83]: Crear roles
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - img [ref=e86]
+          - generic [ref=e90]:
+            - strong [ref=e91]: Codex Admin Temporal
+            - generic [ref=e92]: codex-admin-test@sgcs.local
+        - button "Salir" [ref=e94] [cursor=pointer]:
+          - img [ref=e95]
+          - text: Salir
+    - main [ref=e98]:
+      - generic [ref=e99]:
+        - generic [ref=e100]:
+          - paragraph [ref=e101]: Sistema de Gestion de la Configuracion de Software
+          - heading "nuevoproyecto" [level=1] [ref=e102]
+          - paragraph [ref=e103]: Agile / Scrum · 20 jun. 2026 - 30 jun. 2026
+        - generic [ref=e105]:
+          - combobox [ref=e106]:
+            - option "nuevoproyecto" [selected]
+            - option "ProbandoProyecto"
+            - option "Proyecto 1"
+          - button "Abrir" [ref=e107] [cursor=pointer]
+      - generic [ref=e108]:
+        - generic [ref=e109]:
+          - generic [ref=e110]: Solicitudes
+          - strong [ref=e111]: "1"
+        - generic [ref=e112]:
+          - generic [ref=e113]: Cerradas
+          - strong [ref=e114]: "0"
+        - generic [ref=e115]:
+          - generic [ref=e116]: Tarjetas DEV
+          - strong [ref=e117]: "0"
+        - generic [ref=e118]:
+          - generic [ref=e119]: Horas reportadas
+          - strong [ref=e120]: "0.0"
+      - generic [ref=e121]:
+        - generic [ref=e122]:
+          - generic [ref=e124]:
+            - paragraph [ref=e125]: Backlog
+            - heading "Avance de desarrollo" [level=2] [ref=e126]
+          - generic [ref=e127]:
+            - generic [ref=e128]:
+              - generic [ref=e129]: Promedio completado
+              - strong [ref=e130]: 0%
+              - generic "Avance 0%" [ref=e131]
+            - generic [ref=e132]:
+              - generic [ref=e133]: Listas para QA
+              - strong [ref=e134]: "0"
+        - generic [ref=e135]:
+          - generic [ref=e137]:
+            - paragraph [ref=e138]: Trazabilidad
+            - heading "Estados de solicitudes" [level=2] [ref=e139]
+          - generic [ref=e141]:
+            - generic [ref=e142]: 1 solicitudes
+            - generic [ref=e143]: Listo para backlog tecnico
+      - generic [ref=e144]:
+        - heading "Solicitudes recientes" [level=2] [ref=e147]
+        - table [ref=e149]:
+          - rowgroup [ref=e150]:
+            - row "Solicitud Solicitante Estado Actualizacion" [ref=e151]:
+              - columnheader "Solicitud" [ref=e152]
+              - columnheader "Solicitante" [ref=e153]
+              - columnheader "Estado" [ref=e154]
+              - columnheader "Actualizacion" [ref=e155]
+          - rowgroup [ref=e156]:
+            - row "SGCS-00009 nuevo cambio solicitante Listo para backlog tecnico 20 jun. 2026, 11:36 a. m." [ref=e157]:
+              - cell "SGCS-00009 nuevo cambio" [ref=e158]:
+                - link "SGCS-00009 nuevo cambio" [ref=e159] [cursor=pointer]:
+                  - /url: /requests/9
+                  - strong [ref=e160]: SGCS-00009
+                  - generic [ref=e161]: nuevo cambio
+              - cell "solicitante" [ref=e162]
+              - cell "Listo para backlog tecnico" [ref=e163]:
+                - generic [ref=e164]: Listo para backlog tecnico
+              - cell "20 jun. 2026, 11:36 a. m." [ref=e165]
+      - generic [ref=e166]:
+        - heading "Ultimos avances reportados" [level=2] [ref=e169]
+        - generic [ref=e170]:
+          - strong [ref=e171]: Sin avances
+          - paragraph [ref=e172]: El equipo aun no registra horas.

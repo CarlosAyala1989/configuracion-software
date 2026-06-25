@@ -1,0 +1,112 @@
+- generic [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e24] [cursor=pointer]:
+    - img [ref=e25]
+  - alert [ref=e28]
+  - generic [ref=e173]:
+    - complementary [ref=e174]:
+      - link "S SGCS DevOps Control agil de cambios" [ref=e175] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e176]: S
+        - generic [ref=e177]:
+          - strong [ref=e178]: SGCS DevOps
+          - generic [ref=e179]: Control agil de cambios
+      - navigation "Principal" [ref=e180]:
+        - link "Dashboard" [ref=e181] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e182]
+          - generic [ref=e187]: Dashboard
+        - link "Crear usuarios" [ref=e188] [cursor=pointer]:
+          - /url: /admin/users
+          - img [ref=e189]
+          - generic [ref=e192]: Crear usuarios
+        - link "Crear proyectos" [ref=e193] [cursor=pointer]:
+          - /url: /admin/projects
+          - img [ref=e194]
+          - generic [ref=e196]: Crear proyectos
+        - link "Asignar roles" [ref=e197] [cursor=pointer]:
+          - /url: /admin/assignments
+          - img [ref=e198]
+          - generic [ref=e210]: Asignar roles
+        - link "Equipos de trabajo" [ref=e211] [cursor=pointer]:
+          - /url: /admin/teams
+          - img [ref=e212]
+          - generic [ref=e222]: Equipos de trabajo
+        - link "Crear roles" [ref=e223] [cursor=pointer]:
+          - /url: /admin/roles
+          - img [ref=e224]
+          - generic [ref=e227]: Crear roles
+      - generic [ref=e228]:
+        - generic [ref=e229]:
+          - img [ref=e230]
+          - generic [ref=e234]:
+            - strong [ref=e235]: Codex Admin Temporal
+            - generic [ref=e236]: codex-admin-test@sgcs.local
+        - button "Salir" [ref=e238] [cursor=pointer]:
+          - img [ref=e239]
+          - text: Salir
+    - main [ref=e242]:
+      - generic [ref=e243]:
+        - generic [ref=e244]:
+          - paragraph [ref=e245]: Sistema de Gestion de la Configuracion de Software
+          - heading "nuevoproyecto" [level=1] [ref=e246]
+          - paragraph [ref=e247]: Agile / Scrum · 20 jun. 2026 - 30 jun. 2026
+        - generic [ref=e249]:
+          - combobox [ref=e250]:
+            - option "nuevoproyecto" [selected]
+            - option "ProbandoProyecto"
+            - option "Proyecto 1"
+          - button "Abrir" [ref=e251] [cursor=pointer]
+      - generic [ref=e252]:
+        - generic [ref=e254]:
+          - paragraph [ref=e255]: Administrador
+          - heading "Equipos de Trabajo" [level=2] [ref=e256]
+        - button "Crear Equipo de Trabajo" [active] [ref=e258] [cursor=pointer]
+        - generic [ref=e259]:
+          - strong [ref=e260]: Sin equipos
+          - paragraph [ref=e261]: Crea un equipo para reutilizarlo en varios proyectos.
+        - dialog "Crear Equipo de Trabajo" [ref=e263]:
+          - generic [ref=e264]:
+            - generic [ref=e265]:
+              - generic [ref=e266]:
+                - paragraph [ref=e267]: Equipo reutilizable
+                - heading "Crear Equipo de Trabajo" [level=2] [ref=e268]
+              - button "Cerrar" [ref=e269] [cursor=pointer]
+            - generic [ref=e270]:
+              - generic [ref=e271]: Nombre del equipo
+              - textbox "Nombre del equipo" [ref=e272]:
+                - /placeholder: Equipo Ideal
+            - generic [ref=e273]:
+              - generic [ref=e274]: Descripcion
+              - textbox "Descripcion" [ref=e275]
+            - generic [ref=e276]:
+              - generic [ref=e277]:
+                - strong [ref=e278]: Usuarios y roles
+                - button "Agregar usuario" [ref=e279] [cursor=pointer]
+              - generic [ref=e280]:
+                - generic [ref=e281]:
+                  - generic [ref=e282]: Usuario
+                  - combobox "Usuario" [ref=e283]:
+                    - option "Selecciona usuario" [selected]
+                    - option "Administrador SGCS · admin@sgcs.local"
+                    - option "Ahmed · aa2022074261@virtual.upt.pe"
+                    - option "Bruno · ba2023077472@virtual.upt.pe"
+                    - option "Carlos Ayala · carlosdaniel@gmail.com"
+                    - option "Carlos Daniel Ramos · carlosayala@gmail.com"
+                    - option "Codex Admin Temporal · codex-admin-test@sgcs.local"
+                    - option "comite · comitecambio@gmail.com"
+                    - option "desarrollador · desarrollador@desarrollador.com"
+                    - option "jefeproyecto · jefeproyecto@gmail.com"
+                    - option "lidertecnico · lidertecnico@gmail.com"
+                    - option "qa · qa@gmail.com"
+                    - option "solicitante · solicitante@gmail.com"
+                - generic [ref=e284]:
+                  - generic [ref=e285]: Rol
+                  - combobox "Rol" [ref=e286]:
+                    - option "CCB" [selected]
+                    - option "Desarrollador"
+                    - option "Jefe de proyectos"
+                    - option "Lider tecnico"
+                    - option "QA"
+                    - option "Solicitante"
+                - button "Quitar" [ref=e287] [cursor=pointer]
+            - button "Guardar" [ref=e289] [cursor=pointer]

@@ -1,0 +1,140 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e24] [cursor=pointer]:
+    - img [ref=e25]
+  - alert [ref=e28]
+  - generic [ref=e439]:
+    - complementary [ref=e440]:
+      - link "S SGCS DevOps Control agil de cambios" [ref=e441] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e442]: S
+        - generic [ref=e443]:
+          - strong [ref=e444]: SGCS DevOps
+          - generic [ref=e445]: Control agil de cambios
+      - navigation "Principal" [ref=e446]:
+        - link "Dashboard" [ref=e447] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e448]
+          - generic [ref=e453]: Dashboard
+        - link "Crear usuarios" [ref=e454] [cursor=pointer]:
+          - /url: /admin/users
+          - img [ref=e455]
+          - generic [ref=e458]: Crear usuarios
+        - link "Crear proyectos" [ref=e459] [cursor=pointer]:
+          - /url: /admin/projects
+          - img [ref=e460]
+          - generic [ref=e462]: Crear proyectos
+        - link "Asignar roles" [ref=e463] [cursor=pointer]:
+          - /url: /admin/assignments
+          - img [ref=e464]
+          - generic [ref=e476]: Asignar roles
+        - link "Equipos de trabajo" [ref=e477] [cursor=pointer]:
+          - /url: /admin/teams
+          - img [ref=e478]
+          - generic [ref=e488]: Equipos de trabajo
+        - link "Crear roles" [ref=e489] [cursor=pointer]:
+          - /url: /admin/roles
+          - img [ref=e490]
+          - generic [ref=e493]: Crear roles
+      - generic [ref=e494]:
+        - generic [ref=e495]:
+          - img [ref=e496]
+          - generic [ref=e500]:
+            - strong [ref=e501]: Codex Admin Temporal
+            - generic [ref=e502]: codex-admin-test@sgcs.local
+        - button "Salir" [ref=e504] [cursor=pointer]:
+          - img [ref=e505]
+          - text: Salir
+    - main [ref=e508]:
+      - generic [ref=e509]:
+        - generic [ref=e510]:
+          - paragraph [ref=e511]: Sistema de Gestion de la Configuracion de Software
+          - heading "nuevoproyecto" [level=1] [ref=e512]
+          - paragraph [ref=e513]: Agile / Scrum · 20 jun. 2026 - 30 jun. 2026
+        - generic [ref=e515]:
+          - combobox [ref=e516]:
+            - option "nuevoproyecto" [selected]
+            - option "ProbandoProyecto"
+            - option "Proyecto 1"
+          - button "Abrir" [ref=e517] [cursor=pointer]
+      - generic [ref=e518]: Rol creado correctamente.
+      - generic [ref=e519]:
+        - generic [ref=e521]:
+          - paragraph [ref=e522]: Herencia de vistas
+          - heading "Crear rol" [level=2] [ref=e523]
+        - generic [ref=e524]:
+          - generic [ref=e525]:
+            - generic [ref=e526]: Nombre del rol
+            - textbox "Nombre del rol" [ref=e527]:
+              - /placeholder: Analista QA Senior
+          - generic [ref=e528]:
+            - generic [ref=e529]: Codigo
+            - textbox "Codigo" [ref=e530]:
+              - /placeholder: ANALISTA_QA_SENIOR
+          - generic [ref=e531]:
+            - generic [ref=e532]: Heredar vistas de
+            - combobox "Heredar vistas de" [ref=e533]:
+              - option "Solicitante" [selected]
+              - option "Jefe de proyectos"
+              - option "CCB"
+              - option "Lider tecnico"
+              - option "Desarrollador"
+              - option "QA"
+          - generic [ref=e534]:
+            - generic [ref=e535]: Descripcion
+            - textbox "Descripcion" [ref=e536]
+          - button "Crear rol" [ref=e538] [cursor=pointer]
+      - generic [ref=e539]:
+        - heading "Roles disponibles" [level=2] [ref=e542]
+        - table [ref=e544]:
+          - rowgroup [ref=e545]:
+            - row "Rol Codigo Vista heredada Tipo Estado" [ref=e546]:
+              - columnheader "Rol" [ref=e547]
+              - columnheader "Codigo" [ref=e548]
+              - columnheader "Vista heredada" [ref=e549]
+              - columnheader "Tipo" [ref=e550]
+              - columnheader "Estado" [ref=e551]
+          - rowgroup [ref=e552]:
+            - row "CCB CCB CCB Predefinido Activo" [ref=e553]:
+              - cell "CCB" [ref=e554]
+              - cell "CCB" [ref=e555]
+              - cell "CCB" [ref=e556]
+              - cell "Predefinido" [ref=e557]
+              - cell "Activo" [ref=e558]
+            - row "Desarrollador DESARROLLADOR Desarrollador Predefinido Activo" [ref=e559]:
+              - cell "Desarrollador" [ref=e560]
+              - cell "DESARROLLADOR" [ref=e561]
+              - cell "Desarrollador" [ref=e562]
+              - cell "Predefinido" [ref=e563]
+              - cell "Activo" [ref=e564]
+            - row "Jefe de proyectos JEFE_PROYECTO Jefe de proyectos Predefinido Activo" [ref=e565]:
+              - cell "Jefe de proyectos" [ref=e566]
+              - cell "JEFE_PROYECTO" [ref=e567]
+              - cell "Jefe de proyectos" [ref=e568]
+              - cell "Predefinido" [ref=e569]
+              - cell "Activo" [ref=e570]
+            - row "Lider tecnico LIDER_TECNICO Lider tecnico Predefinido Activo" [ref=e571]:
+              - cell "Lider tecnico" [ref=e572]
+              - cell "LIDER_TECNICO" [ref=e573]
+              - cell "Lider tecnico" [ref=e574]
+              - cell "Predefinido" [ref=e575]
+              - cell "Activo" [ref=e576]
+            - row "QA QA QA Predefinido Activo" [ref=e577]:
+              - cell "QA" [ref=e578]
+              - cell "QA" [ref=e579]
+              - cell "QA" [ref=e580]
+              - cell "Predefinido" [ref=e581]
+              - cell "Activo" [ref=e582]
+            - row "Solicitante SOLICITANTE Solicitante Predefinido Activo" [ref=e583]:
+              - cell "Solicitante" [ref=e584]
+              - cell "SOLICITANTE" [ref=e585]
+              - cell "Solicitante" [ref=e586]
+              - cell "Predefinido" [ref=e587]
+              - cell "Activo" [ref=e588]
+            - row "Codex QA Temporal Rol temporal de verificacion Codex CODEX_QA_TEMP QA Personalizado Activo" [ref=e589]:
+              - cell "Codex QA Temporal Rol temporal de verificacion Codex" [ref=e590]:
+                - text: Codex QA Temporal
+                - text: Rol temporal de verificacion Codex
+              - cell "CODEX_QA_TEMP" [ref=e591]
+              - cell "QA" [ref=e592]
+              - cell "Personalizado" [ref=e593]
+              - cell "Activo" [ref=e594]

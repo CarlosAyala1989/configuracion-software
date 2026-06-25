@@ -1,0 +1,80 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e24] [cursor=pointer]:
+    - img [ref=e25]
+  - alert [ref=e28]
+  - generic [ref=e712]:
+    - complementary [ref=e713]:
+      - link "S SGCS DevOps Control agil de cambios" [ref=e714] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e715]: S
+        - generic [ref=e716]:
+          - strong [ref=e717]: SGCS DevOps
+          - generic [ref=e718]: Control agil de cambios
+      - navigation "Principal" [ref=e719]:
+        - link "Dashboard" [ref=e720] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e721]
+          - generic [ref=e726]: Dashboard
+        - link "Crear usuarios" [ref=e727] [cursor=pointer]:
+          - /url: /admin/users
+          - img [ref=e728]
+          - generic [ref=e731]: Crear usuarios
+        - link "Crear proyectos" [ref=e732] [cursor=pointer]:
+          - /url: /admin/projects
+          - img [ref=e733]
+          - generic [ref=e735]: Crear proyectos
+        - link "Asignar roles" [ref=e736] [cursor=pointer]:
+          - /url: /admin/assignments
+          - img [ref=e737]
+          - generic [ref=e749]: Asignar roles
+        - link "Equipos de trabajo" [ref=e750] [cursor=pointer]:
+          - /url: /admin/teams
+          - img [ref=e751]
+          - generic [ref=e761]: Equipos de trabajo
+        - link "Crear roles" [ref=e762] [cursor=pointer]:
+          - /url: /admin/roles
+          - img [ref=e763]
+          - generic [ref=e766]: Crear roles
+      - generic [ref=e767]:
+        - generic [ref=e768]:
+          - img [ref=e769]
+          - generic [ref=e773]:
+            - strong [ref=e774]: Codex Admin Temporal
+            - generic [ref=e775]: codex-admin-test@sgcs.local
+        - button "Salir" [ref=e777] [cursor=pointer]:
+          - img [ref=e778]
+          - text: Salir
+    - main [ref=e781]:
+      - generic [ref=e782]:
+        - generic [ref=e783]:
+          - paragraph [ref=e784]: Sistema de Gestion de la Configuracion de Software
+          - heading "nuevoproyecto" [level=1] [ref=e785]
+          - paragraph [ref=e786]: Agile / Scrum · 20 jun. 2026 - 30 jun. 2026
+        - generic [ref=e788]:
+          - combobox [ref=e789]:
+            - option "nuevoproyecto" [selected]
+            - option "ProbandoProyecto"
+            - option "Proyecto 1"
+          - button "Abrir" [ref=e790] [cursor=pointer]
+      - generic [ref=e791]: Equipo de trabajo actualizado.
+      - generic [ref=e792]:
+        - generic [ref=e794]:
+          - paragraph [ref=e795]: Administrador
+          - heading "Equipos de Trabajo" [level=2] [ref=e796]
+        - button "Crear Equipo de Trabajo" [ref=e798] [cursor=pointer]
+        - table [ref=e800]:
+          - rowgroup [ref=e801]:
+            - row "Equipo Integrantes Acciones" [ref=e802]:
+              - columnheader "Equipo" [ref=e803]
+              - columnheader "Integrantes" [ref=e804]
+              - columnheader "Acciones" [ref=e805]
+          - rowgroup [ref=e806]:
+            - row "Codex Equipo Temporal Equipo temporal de verificacion Codex Codex Admin Temporal (Codex QA Temporal) Editar Eliminar" [ref=e807]:
+              - cell "Codex Equipo Temporal Equipo temporal de verificacion Codex" [ref=e808]:
+                - text: Codex Equipo Temporal
+                - text: Equipo temporal de verificacion Codex
+              - cell "Codex Admin Temporal (Codex QA Temporal)" [ref=e809]
+              - cell "Editar Eliminar" [ref=e810]:
+                - generic [ref=e811]:
+                  - button "Editar" [ref=e812] [cursor=pointer]
+                  - button "Eliminar" [ref=e814] [cursor=pointer]

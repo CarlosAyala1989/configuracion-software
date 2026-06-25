@@ -1,0 +1,258 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e24] [cursor=pointer]:
+    - img [ref=e25]
+  - alert [ref=e28]
+  - generic [ref=e815]:
+    - complementary [ref=e816]:
+      - link "S SGCS DevOps Control agil de cambios" [ref=e817] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e818]: S
+        - generic [ref=e819]:
+          - strong [ref=e820]: SGCS DevOps
+          - generic [ref=e821]: Control agil de cambios
+      - navigation "Principal" [ref=e822]:
+        - link "Dashboard" [ref=e823] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e824]
+          - generic [ref=e829]: Dashboard
+        - link "Crear usuarios" [ref=e830] [cursor=pointer]:
+          - /url: /admin/users
+          - img [ref=e831]
+          - generic [ref=e834]: Crear usuarios
+        - link "Crear proyectos" [ref=e835] [cursor=pointer]:
+          - /url: /admin/projects
+          - img [ref=e836]
+          - generic [ref=e838]: Crear proyectos
+        - link "Asignar roles" [ref=e839] [cursor=pointer]:
+          - /url: /admin/assignments
+          - img [ref=e840]
+          - generic [ref=e852]: Asignar roles
+        - link "Equipos de trabajo" [ref=e853] [cursor=pointer]:
+          - /url: /admin/teams
+          - img [ref=e854]
+          - generic [ref=e864]: Equipos de trabajo
+        - link "Crear roles" [ref=e865] [cursor=pointer]:
+          - /url: /admin/roles
+          - img [ref=e866]
+          - generic [ref=e869]: Crear roles
+      - generic [ref=e870]:
+        - generic [ref=e871]:
+          - img [ref=e872]
+          - generic [ref=e876]:
+            - strong [ref=e877]: Codex Admin Temporal
+            - generic [ref=e878]: codex-admin-test@sgcs.local
+        - button "Salir" [ref=e880] [cursor=pointer]:
+          - img [ref=e881]
+          - text: Salir
+    - main [ref=e884]:
+      - generic [ref=e885]:
+        - generic [ref=e886]:
+          - paragraph [ref=e887]: Sistema de Gestion de la Configuracion de Software
+          - heading "nuevoproyecto" [level=1] [ref=e888]
+          - paragraph [ref=e889]: Agile / Scrum · 20 jun. 2026 - 30 jun. 2026
+        - generic [ref=e891]:
+          - combobox [ref=e892]:
+            - option "nuevoproyecto" [selected]
+            - option "ProbandoProyecto"
+            - option "Proyecto 1"
+          - button "Abrir" [ref=e893] [cursor=pointer]
+      - generic [ref=e894]:
+        - generic [ref=e895]:
+          - generic [ref=e897]:
+            - paragraph [ref=e898]: Roles por proyecto
+            - heading "Asignar usuario a proyecto" [level=2] [ref=e899]
+          - generic [ref=e900]:
+            - generic [ref=e901]:
+              - generic [ref=e902]: Proyecto
+              - combobox "Proyecto" [ref=e903]:
+                - option "nuevoproyecto" [selected]
+                - option "ProbandoProyecto"
+                - option "Proyecto 1"
+            - generic [ref=e904]:
+              - generic [ref=e905]: Usuario
+              - combobox "Usuario" [ref=e906]:
+                - option "Administrador SGCS · admin@sgcs.local" [selected]
+                - option "Ahmed · aa2022074261@virtual.upt.pe"
+                - option "Bruno · ba2023077472@virtual.upt.pe"
+                - option "Carlos Ayala · carlosdaniel@gmail.com"
+                - option "Carlos Daniel Ramos · carlosayala@gmail.com"
+                - option "Codex Admin Temporal · codex-admin-test@sgcs.local"
+                - option "comite · comitecambio@gmail.com"
+                - option "desarrollador · desarrollador@desarrollador.com"
+                - option "jefeproyecto · jefeproyecto@gmail.com"
+                - option "lidertecnico · lidertecnico@gmail.com"
+                - option "qa · qa@gmail.com"
+                - option "solicitante · solicitante@gmail.com"
+            - generic [ref=e907]:
+              - generic [ref=e908]: Rol en este proyecto
+              - combobox "Rol en este proyecto" [ref=e909]:
+                - option "CCB" [selected]
+                - option "Desarrollador"
+                - option "Jefe de proyectos"
+                - option "Lider tecnico"
+                - option "QA"
+                - option "Solicitante"
+                - option "Codex QA Temporal (QA)"
+            - button "Asignar rol" [ref=e911] [cursor=pointer]
+        - generic [ref=e912]:
+          - generic [ref=e914]:
+            - paragraph [ref=e915]: Equipo reutilizable
+            - heading "Asignar equipo a proyecto" [level=2] [ref=e916]
+          - generic [ref=e917]:
+            - generic [ref=e918]:
+              - generic [ref=e919]: Proyecto
+              - combobox "Proyecto" [ref=e920]:
+                - option "nuevoproyecto" [selected]
+                - option "ProbandoProyecto"
+                - option "Proyecto 1"
+            - generic [ref=e921]:
+              - generic [ref=e922]: Equipo de trabajo
+              - combobox "Equipo de trabajo" [ref=e923]:
+                - option "Codex Equipo Temporal" [selected]
+            - button "Asignar equipo" [ref=e925] [cursor=pointer]
+      - generic [ref=e926]:
+        - heading "Asignaciones actuales" [level=2] [ref=e929]
+        - table [ref=e931]:
+          - rowgroup [ref=e932]:
+            - row "Proyecto Usuario Rol Vista heredada Accion" [ref=e933]:
+              - columnheader "Proyecto" [ref=e934]
+              - columnheader "Usuario" [ref=e935]
+              - columnheader "Rol" [ref=e936]
+              - columnheader "Vista heredada" [ref=e937]
+              - columnheader "Accion" [ref=e938]
+          - rowgroup [ref=e939]:
+            - row "nuevoproyecto comite comitecambio@gmail.com CCB CCB Quitar" [ref=e940]:
+              - cell "nuevoproyecto" [ref=e941]
+              - cell "comite comitecambio@gmail.com" [ref=e942]:
+                - text: comite
+                - text: comitecambio@gmail.com
+              - cell "CCB" [ref=e943]
+              - cell "CCB" [ref=e944]
+              - cell "Quitar" [ref=e945]:
+                - button "Quitar" [ref=e947] [cursor=pointer]
+            - row "nuevoproyecto Ahmed aa2022074261@virtual.upt.pe Desarrollador Desarrollador Quitar" [ref=e948]:
+              - cell "nuevoproyecto" [ref=e949]
+              - cell "Ahmed aa2022074261@virtual.upt.pe" [ref=e950]:
+                - text: Ahmed
+                - text: aa2022074261@virtual.upt.pe
+              - cell "Desarrollador" [ref=e951]
+              - cell "Desarrollador" [ref=e952]
+              - cell "Quitar" [ref=e953]:
+                - button "Quitar" [ref=e955] [cursor=pointer]
+            - row "nuevoproyecto desarrollador desarrollador@desarrollador.com Desarrollador Desarrollador Quitar" [ref=e956]:
+              - cell "nuevoproyecto" [ref=e957]
+              - cell "desarrollador desarrollador@desarrollador.com" [ref=e958]:
+                - text: desarrollador
+                - text: desarrollador@desarrollador.com
+              - cell "Desarrollador" [ref=e959]
+              - cell "Desarrollador" [ref=e960]
+              - cell "Quitar" [ref=e961]:
+                - button "Quitar" [ref=e963] [cursor=pointer]
+            - row "nuevoproyecto jefeproyecto jefeproyecto@gmail.com Jefe de proyectos Jefe de proyectos Quitar" [ref=e964]:
+              - cell "nuevoproyecto" [ref=e965]
+              - cell "jefeproyecto jefeproyecto@gmail.com" [ref=e966]:
+                - text: jefeproyecto
+                - text: jefeproyecto@gmail.com
+              - cell "Jefe de proyectos" [ref=e967]
+              - cell "Jefe de proyectos" [ref=e968]
+              - cell "Quitar" [ref=e969]:
+                - button "Quitar" [ref=e971] [cursor=pointer]
+            - row "nuevoproyecto lidertecnico lidertecnico@gmail.com Lider tecnico Lider tecnico Quitar" [ref=e972]:
+              - cell "nuevoproyecto" [ref=e973]
+              - cell "lidertecnico lidertecnico@gmail.com" [ref=e974]:
+                - text: lidertecnico
+                - text: lidertecnico@gmail.com
+              - cell "Lider tecnico" [ref=e975]
+              - cell "Lider tecnico" [ref=e976]
+              - cell "Quitar" [ref=e977]:
+                - button "Quitar" [ref=e979] [cursor=pointer]
+            - row "nuevoproyecto qa qa@gmail.com QA QA Quitar" [ref=e980]:
+              - cell "nuevoproyecto" [ref=e981]
+              - cell "qa qa@gmail.com" [ref=e982]:
+                - text: qa
+                - text: qa@gmail.com
+              - cell "QA" [ref=e983]
+              - cell "QA" [ref=e984]
+              - cell "Quitar" [ref=e985]:
+                - button "Quitar" [ref=e987] [cursor=pointer]
+            - row "nuevoproyecto solicitante solicitante@gmail.com Solicitante Solicitante Quitar" [ref=e988]:
+              - cell "nuevoproyecto" [ref=e989]
+              - cell "solicitante solicitante@gmail.com" [ref=e990]:
+                - text: solicitante
+                - text: solicitante@gmail.com
+              - cell "Solicitante" [ref=e991]
+              - cell "Solicitante" [ref=e992]
+              - cell "Quitar" [ref=e993]:
+                - button "Quitar" [ref=e995] [cursor=pointer]
+            - row "ProbandoProyecto desarrollador desarrollador@desarrollador.com Desarrollador Desarrollador Quitar" [ref=e996]:
+              - cell "ProbandoProyecto" [ref=e997]
+              - cell "desarrollador desarrollador@desarrollador.com" [ref=e998]:
+                - text: desarrollador
+                - text: desarrollador@desarrollador.com
+              - cell "Desarrollador" [ref=e999]
+              - cell "Desarrollador" [ref=e1000]
+              - cell "Quitar" [ref=e1001]:
+                - button "Quitar" [ref=e1003] [cursor=pointer]
+            - row "ProbandoProyecto Bruno ba2023077472@virtual.upt.pe Lider tecnico Lider tecnico Quitar" [ref=e1004]:
+              - cell "ProbandoProyecto" [ref=e1005]
+              - cell "Bruno ba2023077472@virtual.upt.pe" [ref=e1006]:
+                - text: Bruno
+                - text: ba2023077472@virtual.upt.pe
+              - cell "Lider tecnico" [ref=e1007]
+              - cell "Lider tecnico" [ref=e1008]
+              - cell "Quitar" [ref=e1009]:
+                - button "Quitar" [ref=e1011] [cursor=pointer]
+            - row "Proyecto 1 comite comitecambio@gmail.com CCB CCB Quitar" [ref=e1012]:
+              - cell "Proyecto 1" [ref=e1013]
+              - cell "comite comitecambio@gmail.com" [ref=e1014]:
+                - text: comite
+                - text: comitecambio@gmail.com
+              - cell "CCB" [ref=e1015]
+              - cell "CCB" [ref=e1016]
+              - cell "Quitar" [ref=e1017]:
+                - button "Quitar" [ref=e1019] [cursor=pointer]
+            - row "Proyecto 1 desarrollador desarrollador@desarrollador.com Desarrollador Desarrollador Quitar" [ref=e1020]:
+              - cell "Proyecto 1" [ref=e1021]
+              - cell "desarrollador desarrollador@desarrollador.com" [ref=e1022]:
+                - text: desarrollador
+                - text: desarrollador@desarrollador.com
+              - cell "Desarrollador" [ref=e1023]
+              - cell "Desarrollador" [ref=e1024]
+              - cell "Quitar" [ref=e1025]:
+                - button "Quitar" [ref=e1027] [cursor=pointer]
+            - row "Proyecto 1 jefeproyecto jefeproyecto@gmail.com Jefe de proyectos Jefe de proyectos Quitar" [ref=e1028]:
+              - cell "Proyecto 1" [ref=e1029]
+              - cell "jefeproyecto jefeproyecto@gmail.com" [ref=e1030]:
+                - text: jefeproyecto
+                - text: jefeproyecto@gmail.com
+              - cell "Jefe de proyectos" [ref=e1031]
+              - cell "Jefe de proyectos" [ref=e1032]
+              - cell "Quitar" [ref=e1033]:
+                - button "Quitar" [ref=e1035] [cursor=pointer]
+            - row "Proyecto 1 lidertecnico lidertecnico@gmail.com Lider tecnico Lider tecnico Quitar" [ref=e1036]:
+              - cell "Proyecto 1" [ref=e1037]
+              - cell "lidertecnico lidertecnico@gmail.com" [ref=e1038]:
+                - text: lidertecnico
+                - text: lidertecnico@gmail.com
+              - cell "Lider tecnico" [ref=e1039]
+              - cell "Lider tecnico" [ref=e1040]
+              - cell "Quitar" [ref=e1041]:
+                - button "Quitar" [ref=e1043] [cursor=pointer]
+            - row "Proyecto 1 qa qa@gmail.com QA QA Quitar" [ref=e1044]:
+              - cell "Proyecto 1" [ref=e1045]
+              - cell "qa qa@gmail.com" [ref=e1046]:
+                - text: qa
+                - text: qa@gmail.com
+              - cell "QA" [ref=e1047]
+              - cell "QA" [ref=e1048]
+              - cell "Quitar" [ref=e1049]:
+                - button "Quitar" [ref=e1051] [cursor=pointer]
+            - row "Proyecto 1 Carlos Ayala carlosdaniel@gmail.com Solicitante Solicitante Quitar" [ref=e1052]:
+              - cell "Proyecto 1" [ref=e1053]
+              - cell "Carlos Ayala carlosdaniel@gmail.com" [ref=e1054]:
+                - text: Carlos Ayala
+                - text: carlosdaniel@gmail.com
+              - cell "Solicitante" [ref=e1055]
+              - cell "Solicitante" [ref=e1056]
+              - cell "Quitar" [ref=e1057]:
+                - button "Quitar" [ref=e1059] [cursor=pointer]

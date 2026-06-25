@@ -1,0 +1,17 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: S
+      - generic [ref=e6]:
+        - strong [ref=e7]: SGCS DevOps
+        - generic [ref=e8]: Gestion agil de solicitudes y trazabilidad
+    - heading "Ingresar" [level=1] [ref=e9]
+    - paragraph [ref=e10]: Usa el usuario creado por el administrador del sistema.
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - generic [ref=e13]: Correo
+        - textbox "Correo" [ref=e14]
+      - generic [ref=e15]:
+        - generic [ref=e16]: Contrasena
+        - textbox "Contrasena" [ref=e17]
+      - button "Entrar" [ref=e18] [cursor=pointer]
