@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { requesterFinalDecisionAction, requesterResubmitAction } from "@/app/actions/requests";
+import {
+  requesterFinalDecisionAction,
+  requesterResubmitAction,
+  resolveConfigurationImpactAction
+} from "@/app/actions/requests";
 import { AppShell } from "@/components/AppShell";
 import {
   EmptyState,
@@ -14,6 +18,7 @@ import {
   TextArea
 } from "@/components/ui";
 import { canUseRole, getActiveProject, requireUser } from "@/lib/auth";
+import { CONFIGURATION_IMPACT_STATUS_LABELS, CONFIGURATION_IMPACT_TYPE_LABELS } from "@/lib/configuration";
 import { query } from "@/lib/db";
 import { getDocumentsForChange } from "@/lib/documents";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
@@ -55,7 +60,16 @@ export default async function RequestDetailPage({
     redirect("/dashboard");
   }
 
-  const [audit, workItems, updates, reviews, documents, paramsValue] = await Promise.all([
+  const [
+    audit,
+    workItems,
+    updates,
+    reviews,
+    documents,
+    configurationImpacts,
+    projectConfigurationItems,
+    paramsValue
+  ] = await Promise.all([
     query<{
       id: number;
       action: string;
@@ -122,6 +136,51 @@ export default async function RequestDetailPage({
       [requestId]
     ),
     getDocumentsForChange(requestId),
+    query<{
+      id: number;
+      configuration_item_id: number;
+      item_name: string;
+      item_category: string;
+      current_version: number;
+      source_name: string | null;
+      impact_type: string;
+      reason: string | null;
+      status: string;
+      old_version: number;
+      new_version: number | null;
+      deliverable_notes: string | null;
+      document_id: number | null;
+      document_file_name: string | null;
+      resolver_name: string | null;
+      resolved_at: string | null;
+    }>(
+      `SELECT cri.id, cri.configuration_item_id, pci.name AS item_name,
+              pci.category AS item_category, pci.current_version,
+              source.name AS source_name, cri.impact_type, cri.reason, cri.status,
+              cri.old_version, cri.new_version, cri.deliverable_notes,
+              cri.document_id, doc.file_name AS document_file_name,
+              resolver.name AS resolver_name, cri.resolved_at
+       FROM change_request_configuration_impacts cri
+       INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+       LEFT JOIN project_configuration_items source ON source.id = cri.source_item_id
+       LEFT JOIN documents doc ON doc.id = cri.document_id
+       LEFT JOIN users resolver ON resolver.id = cri.resolved_by
+       WHERE cri.change_request_id = ?
+       ORDER BY FIELD(cri.impact_type, 'DIRECT', 'RELATED'), pci.category, pci.name`,
+      [requestId]
+    ),
+    query<{
+      id: number;
+      name: string;
+      category: string;
+      current_version: number;
+    }>(
+      `SELECT id, name, category, current_version
+       FROM project_configuration_items
+       WHERE project_id = ? AND active = 1
+       ORDER BY category, name`,
+      [request.project_id]
+    ),
     searchParams
   ]);
 
@@ -129,11 +188,29 @@ export default async function RequestDetailPage({
   const paramsError = paramsValue.error;
   const requesterCanAct =
     canUseRole(user, role, ["SOLICITANTE"]) && request.requester_id === user.id;
+  const directImpactIds = new Set(
+    configurationImpacts
+      .filter((impact) => impact.impact_type === "DIRECT")
+      .map((impact) => impact.configuration_item_id)
+  );
+  const projectConfigurationItemsByCategory = projectConfigurationItems.reduce<
+    Record<string, typeof projectConfigurationItems>
+  >((groups, item) => {
+    groups[item.category] = groups[item.category] || [];
+    groups[item.category].push(item);
+    return groups;
+  }, {});
 
   return (
     <AppShell>
       {paramsOk ? <div className="ok-banner">Operacion registrada correctamente.</div> : null}
-      {paramsError ? <div className="error-banner">Completa los campos obligatorios antes de continuar.</div> : null}
+      {paramsError ? (
+        <div className="error-banner">
+          {paramsError === "config-deliverable"
+            ? "Para resolver un ECS debes registrar sustento; si cambio, tambien debes adjuntar el entregable."
+            : "Completa los campos obligatorios antes de continuar."}
+        </div>
+      ) : null}
 
       <Panel
         title={`${request.change_code} · ${request.title}`}
@@ -204,6 +281,102 @@ export default async function RequestDetailPage({
         </Panel>
       </section>
 
+      <Panel title="Impacto de elementos SCM" eyebrow="Versionado automatico">
+        {configurationImpacts.length ? (
+          <div className="grid grid-2">
+            {configurationImpacts.map((impact) => {
+              const statusTone =
+                impact.status === "CHANGED" ? "success" : impact.status === "NO_CHANGE" ? "neutral" : "warning";
+              const canResolve = impact.status !== "CHANGED" && request.status !== "CLOSED_APPROVED";
+
+              return (
+                <article className="work-card" key={impact.id}>
+                  <header>
+                    <div>
+                      <h3>{impact.item_name}</h3>
+                      <p className="muted">
+                        {impact.item_category} · {CONFIGURATION_IMPACT_TYPE_LABELS[impact.impact_type] || impact.impact_type}
+                      </p>
+                    </div>
+                    <span className={`badge badge-${statusTone}`}>
+                      {CONFIGURATION_IMPACT_STATUS_LABELS[impact.status] || impact.status}
+                    </span>
+                  </header>
+                  <div className="detail-list">
+                    <div className="detail-item">
+                      <span>Version al solicitar</span>
+                      <strong>V{impact.old_version}</strong>
+                    </div>
+                    <div className="detail-item">
+                      <span>Version actual</span>
+                      <strong>V{impact.current_version}</strong>
+                    </div>
+                    <div className="detail-item">
+                      <span>Resultado</span>
+                      <strong>{impact.new_version ? `V${impact.new_version}` : "Pendiente"}</strong>
+                    </div>
+                    <div className="detail-item">
+                      <span>Origen</span>
+                      <strong>{impact.source_name || "Cambio directo"}</strong>
+                    </div>
+                  </div>
+                  <p>{impact.reason || "Relacionado por dependencia de configuracion."}</p>
+                  {impact.deliverable_notes ? (
+                    <p>
+                      <strong>Sustento: </strong>
+                      {impact.deliverable_notes}
+                    </p>
+                  ) : null}
+                  {impact.document_id && impact.document_file_name ? (
+                    <div className="doc-list">
+                      <Link href={`/api/documents/${impact.document_id}`}>
+                        <span>{impact.document_file_name}</span>
+                        <small>Entregable ECS</small>
+                      </Link>
+                    </div>
+                  ) : null}
+                  {impact.resolver_name ? (
+                    <p className="muted">
+                      {impact.resolver_name} · {formatDateTime(impact.resolved_at)}
+                    </p>
+                  ) : null}
+                  {canResolve ? (
+                    <div className="grid">
+                      <form action={resolveConfigurationImpactAction} className="form-grid">
+                        <input type="hidden" name="impact_id" value={impact.id} />
+                        <TextArea label="Sustento del entregable" name="deliverable_notes" rows={3} required />
+                        <label className="field">
+                          <span>Entregable actualizado (PDF, DOC, DOCX)</span>
+                          <input name="deliverable" type="file" required accept=".pdf,.doc,.docx" />
+                        </label>
+                        <div className="button-row field-wide compact-row">
+                          <button type="submit" name="resolution" value="changed">
+                            Marcar cambiado
+                          </button>
+                        </div>
+                      </form>
+                      {impact.status === "PENDING" ? (
+                        <form action={resolveConfigurationImpactAction} className="grid">
+                          <input type="hidden" name="impact_id" value={impact.id} />
+                          <TextArea label="Justificacion para no cambiar" name="deliverable_notes" rows={3} required />
+                          <div className="button-row compact-row">
+                            <button className="button-secondary" type="submit" name="resolution" value="no_change">
+                              No requiere cambio
+                            </button>
+                          </div>
+                        </form>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState title="Sin impactos SCM">Esta solicitud no tiene elementos de configuracion asociados.</EmptyState>
+        )}
+      </Panel>
+
       {requesterCanAct && request.status === "REQUESTER_NEGOTIATION" ? (
         <Panel title="Responder observaciones y reenviar" eyebrow="Miniflujo de acuerdo">
           <form action={requesterResubmitAction} className="form-grid">
@@ -237,6 +410,36 @@ export default async function RequestDetailPage({
               defaultValue={request.acceptance_criteria}
             />
             <TextArea label="Analisis de impacto" name="impact_analysis" rows={3} required defaultValue={request.impact_analysis} />
+            <div className="field field-wide">
+              <span>Elementos de configuracion que cambian</span>
+              {projectConfigurationItems.length ? (
+                <div className="config-category-list">
+                  {Object.entries(projectConfigurationItemsByCategory).map(([category, items]) => (
+                    <section key={category} className="config-category">
+                      <h3>{category}</h3>
+                      <div className="config-checkbox-grid">
+                        {items.map((item) => (
+                          <label className="config-check" key={item.id}>
+                            <input
+                              name="configuration_item_id"
+                              type="checkbox"
+                              value={item.id}
+                              defaultChecked={directImpactIds.has(item.id)}
+                            />
+                            <span>
+                              <strong>{item.name}</strong>
+                              <small>V{item.current_version}</small>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="Sin ECS">Configura los elementos del proyecto antes de reenviar.</EmptyState>
+              )}
+            </div>
             <TextArea label="Plan de rollback" name="rollback_plan" rows={3} required defaultValue={request.rollback_plan} />
             <TextArea label="Respuesta al rechazo" name="comment" required rows={3} />
             <label className="field field-wide">

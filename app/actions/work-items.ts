@@ -215,11 +215,12 @@ export async function qaReviewAction(formData: FormData) {
   const qaWorkItemId = numberValue(formData, "qa_work_item_id");
   const verdict = textValue(formData, "verdict");
   const comments = textValue(formData, "comments");
+  const evidence = fileValue(formData, "evidence");
   const qaItem = await getWorkItem(qaWorkItemId);
   if (!qaItem || qaItem.project_id !== project.id || qaItem.type !== "QA") redirect("/qa");
   if (!["QA_READY", "QA_ACTIVE"].includes(qaItem.status)) redirect("/qa");
   if (!["approve", "reject"].includes(verdict)) redirect("/qa");
-  if (!comments) redirect("/qa?error=comments");
+  if (!comments || !evidence) redirect("/qa?error=evidence");
 
   const devItem = qaItem.parent_work_item_id ? await getWorkItem(qaItem.parent_work_item_id) : null;
   if (!devItem) redirect("/qa");
@@ -240,7 +241,7 @@ export async function qaReviewAction(formData: FormData) {
     );
 
     await saveUploadedDocument({
-      file: fileValue(formData, "evidence"),
+      file: evidence,
       projectId: project.id,
       changeRequestId: qaItem.change_request_id,
       workItemId: qaWorkItemId,
@@ -336,6 +337,13 @@ export async function tlSendToPmAction(formData: FormData) {
   );
   const request = rows[0];
   if (!request || request.status !== "TECH_LEAD_REVIEW") redirect("/tech-lead");
+  const pendingImpacts = await query<{ total: number }>(
+    `SELECT COUNT(*) AS total
+     FROM change_request_configuration_impacts
+     WHERE change_request_id = ? AND status = 'PENDING'`,
+    [requestId]
+  );
+  if (Number(pendingImpacts[0]?.total || 0) > 0) redirect("/tech-lead?error=config-impacts");
 
   await transaction(async (connection) => {
     await connection.execute(

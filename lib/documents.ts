@@ -16,6 +16,7 @@ export type DocumentType =
   | "CCB_DECISION"
   | "DEV_DOCUMENTATION"
   | "QA_EVIDENCE"
+  | "CONFIGURATION_DELIVERABLE"
   | "FINAL_OBSERVATION";
 
 export async function saveUploadedDocument(options: {

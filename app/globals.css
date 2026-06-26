@@ -464,6 +464,11 @@ button,
   gap: 8px;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .button-secondary {
   background: #fff;
   color: var(--accent-dark);
@@ -607,6 +612,10 @@ button,
   padding: 18px;
 }
 
+.modal-wide {
+  width: min(1080px, 100%);
+}
+
 .modal-header,
 .member-editor-header,
 .member-row {
@@ -640,6 +649,81 @@ button,
   align-items: end;
 }
 
+.project-config-form {
+  margin-top: 16px;
+}
+
+.project-config-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-alt);
+}
+
+.project-config-toolbar span {
+  color: var(--muted);
+  margin-right: auto;
+}
+
+.config-category-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.config-category {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.config-category h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.config-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.config-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--surface);
+}
+
+.config-check input {
+  width: 18px;
+  min-height: 18px;
+  margin-top: 2px;
+}
+
+.config-check span {
+  display: grid;
+  gap: 4px;
+}
+
+.config-check small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.config-check-disabled {
+  background: #f8fafc;
+  color: var(--muted);
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -669,6 +753,10 @@ button,
   }
 
   .member-row {
+    grid-template-columns: 1fr;
+  }
+
+  .config-checkbox-grid {
     grid-template-columns: 1fr;
   }
 }

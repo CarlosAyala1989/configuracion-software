@@ -1,9 +1,8 @@
-import { createProjectAction } from "@/app/actions/admin";
 import { AppShell } from "@/components/AppShell";
-import { EmptyState, Field, Panel, TextArea } from "@/components/ui";
+import { ProjectManager, type AdminProjectRow, type ConfigurationTemplateRow } from "@/components/admin/ProjectForm";
+import { EmptyState, Panel } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
 import { query } from "@/lib/db";
-import { formatDate } from "@/lib/format";
 
 export default async function AdminProjectsPage({
   searchParams
@@ -12,61 +11,47 @@ export default async function AdminProjectsPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
-  const projects = await query<{
-    id: number;
-    title: string;
-    methodology: string;
-    start_date: string;
-    end_date: string;
-    status: string;
-  }>("SELECT id, title, methodology, start_date, end_date, status FROM projects ORDER BY created_at DESC");
+  const [projects, templates] = await Promise.all([
+    query<AdminProjectRow>(
+      `SELECT p.id, p.title, p.description, p.methodology, p.start_date, p.end_date, p.status,
+              COUNT(DISTINCT cr.id) AS request_count,
+              GROUP_CONCAT(DISTINCT pci.element_code ORDER BY pci.element_code SEPARATOR ',') AS item_codes
+       FROM projects p
+       LEFT JOIN change_requests cr ON cr.project_id = p.id
+       LEFT JOIN project_configuration_items pci ON pci.project_id = p.id AND pci.active = 1
+       GROUP BY p.id, p.title, p.description, p.methodology, p.start_date, p.end_date, p.status
+       ORDER BY p.created_at DESC`
+    ),
+    query<ConfigurationTemplateRow>(
+      `SELECT ct.id, ct.name, ct.methodology, ct.description,
+              GROUP_CONCAT(cti.element_code ORDER BY cti.element_code SEPARATOR ',') AS item_codes
+       FROM configuration_templates ct
+       LEFT JOIN configuration_template_items cti ON cti.template_id = ct.id
+       WHERE ct.active = 1
+       GROUP BY ct.id, ct.name, ct.methodology, ct.description
+       ORDER BY ct.methodology, ct.name`
+    )
+  ]);
 
   return (
     <AppShell>
       {params.ok ? <div className="ok-banner">Proyecto actualizado.</div> : null}
-      {params.error ? <div className="error-banner">Revisa los campos del proyecto.</div> : null}
+      {params.error ? (
+        <div className="error-banner">
+          {params.error === "locked"
+            ? "El proyecto ya tiene solicitudes y no puede modificarse."
+            : "Revisa los campos del proyecto y selecciona al menos un ECS."}
+        </div>
+      ) : null}
 
-      <Panel title="Crear proyecto" eyebrow="Proyecto">
-        <form action={createProjectAction} className="form-grid">
-          <Field label="Titulo" name="title" required />
-          <Field label="Metodologia" name="methodology" required defaultValue="Agile / Scrum" />
-          <Field label="Dia de inicio" name="start_date" type="date" required />
-          <Field label="Dia de fin" name="end_date" type="date" required />
-          <TextArea label="Descripcion" name="description" rows={3} />
-          <div className="button-row field-wide">
-            <button type="submit">Crear proyecto</button>
-          </div>
-        </form>
-      </Panel>
-
-      <Panel title="Proyectos">
+      <Panel title="Proyectos" eyebrow="Administrador">
         {projects.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Titulo</th>
-                  <th>Metodologia</th>
-                  <th>Inicio</th>
-                  <th>Fin</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((project) => (
-                  <tr key={project.id}>
-                    <td>{project.title}</td>
-                    <td>{project.methodology}</td>
-                    <td>{formatDate(project.start_date)}</td>
-                    <td>{formatDate(project.end_date)}</td>
-                    <td>{project.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ProjectManager projects={projects} templates={templates} />
         ) : (
-          <EmptyState title="Sin proyectos">Crea un proyecto para asignar roles.</EmptyState>
+          <div className="grid">
+            <ProjectManager projects={projects} templates={templates} />
+            <EmptyState title="Sin proyectos">Crea un proyecto para asignar roles.</EmptyState>
+          </div>
         )}
       </Panel>
     </AppShell>

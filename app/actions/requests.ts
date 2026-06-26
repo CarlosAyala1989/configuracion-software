@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { canUseRole, getActiveProject, requireProjectRole, requireUser } from "@/lib/auth";
-import { execute, query, transaction } from "@/lib/db";
+import {
+  configurationItemIdsFromForm,
+  createChangeRequestConfigurationImpacts,
+  projectConfigurationItemCount
+} from "@/lib/configuration-server";
+import { query, transaction } from "@/lib/db";
 import { saveUploadedDocument } from "@/lib/documents";
 import { fileValue, nullableNumber, nullableText, numberValue, textValue } from "@/lib/forms";
 import { getProjectUsersByRole, notifyUsers } from "@/lib/notifications";
@@ -38,7 +43,11 @@ export async function createChangeRequestAction(formData: FormData) {
   const title = textValue(formData, "title");
   const summary = textValue(formData, "summary");
   const businessReason = textValue(formData, "business_reason");
+  const configurationItemIds = configurationItemIdsFromForm(formData);
   if (!title || !summary || !businessReason || !hasDetailedRequestFields(formData)) {
+    redirect("/requests?error=required");
+  }
+  if ((await projectConfigurationItemCount(project.id)) > 0 && configurationItemIds.length === 0) {
     redirect("/requests?error=required");
   }
 
@@ -74,6 +83,11 @@ export async function createChangeRequestAction(formData: FormData) {
       changeCode,
       requestId
     ]);
+    await createChangeRequestConfigurationImpacts(connection, {
+      projectId: project.id,
+      changeRequestId: requestId,
+      selectedItemIds: configurationItemIds
+    });
 
     await connection.execute(
       `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
@@ -117,7 +131,11 @@ export async function requesterResubmitAction(formData: FormData) {
   if (!["REQUESTER_NEGOTIATION"].includes(request.status)) redirect("/requests");
 
   const comment = textValue(formData, "comment");
+  const configurationItemIds = configurationItemIdsFromForm(formData);
   if (!comment || !hasDetailedRequestFields(formData)) redirect(`/requests/${requestId}?error=required`);
+  if ((await projectConfigurationItemCount(project.id)) > 0 && configurationItemIds.length === 0) {
+    redirect(`/requests/${requestId}?error=required`);
+  }
 
   await transaction(async (connection) => {
     await connection.execute(
@@ -150,6 +168,15 @@ export async function requesterResubmitAction(formData: FormData) {
        VALUES (?, ?, 'SOLICITANTE_REENVIA', ?, 'PM_REVIEW', ?)`,
       [requestId, user.id, request.status, comment || "Solicitud ajustada y reenviada."]
     );
+    await connection.execute(
+      "DELETE FROM change_request_configuration_impacts WHERE change_request_id = ?",
+      [requestId]
+    );
+    await createChangeRequestConfigurationImpacts(connection, {
+      projectId: project.id,
+      changeRequestId: requestId,
+      selectedItemIds: configurationItemIds
+    });
 
     await saveUploadedDocument({
       file: fileValue(formData, "attachment"),
@@ -387,4 +414,109 @@ export async function requesterFinalDecisionAction(formData: FormData) {
 
   revalidatePath(`/requests/${requestId}`);
   redirect(`/requests/${requestId}?ok=final-decision`);
+}
+
+export async function resolveConfigurationImpactAction(formData: FormData) {
+  const user = await requireUser();
+  const { project } = await getActiveProject(user);
+  const impactId = numberValue(formData, "impact_id");
+  const resolution = textValue(formData, "resolution");
+  const deliverableNotes = textValue(formData, "deliverable_notes");
+  const deliverable = fileValue(formData, "deliverable");
+  if (!impactId || !["changed", "no_change"].includes(resolution)) redirect("/requests");
+
+  const rows = await query<{
+    id: number;
+    status: string;
+    change_request_id: number;
+    configuration_item_id: number;
+    project_id: number;
+    request_status: string;
+    item_name: string;
+    current_version: number;
+  }>(
+    `SELECT cri.id, cri.status, cri.change_request_id, cri.configuration_item_id,
+            cr.project_id, cr.status AS request_status,
+            pci.name AS item_name, pci.current_version
+     FROM change_request_configuration_impacts cri
+     INNER JOIN change_requests cr ON cr.id = cri.change_request_id
+     INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+     WHERE cri.id = ?
+     LIMIT 1`,
+    [impactId]
+  );
+  const impact = rows[0];
+  if (!impact) redirect("/requests");
+  if (!user.is_admin && project?.id !== impact.project_id) redirect("/dashboard");
+  if (impact.request_status === "CLOSED_APPROVED") {
+    redirect(`/requests/${impact.change_request_id}`);
+  }
+  if (impact.status === "CHANGED") {
+    redirect(`/requests/${impact.change_request_id}`);
+  }
+  if (!deliverableNotes) {
+    redirect(`/requests/${impact.change_request_id}?error=config-deliverable`);
+  }
+  if (resolution === "changed" && !deliverable) {
+    redirect(`/requests/${impact.change_request_id}?error=config-deliverable`);
+  }
+
+  await transaction(async (connection) => {
+    if (resolution === "changed") {
+      const oldVersion = Number(impact.current_version || 1);
+      const newVersion = oldVersion + 1;
+      const documentId = await saveUploadedDocument({
+        file: deliverable,
+        projectId: impact.project_id,
+        changeRequestId: impact.change_request_id,
+        uploadedBy: user.id,
+        docType: "CONFIGURATION_DELIVERABLE",
+        connection
+      });
+      await connection.execute(
+        "UPDATE project_configuration_items SET current_version = ? WHERE id = ?",
+        [newVersion, impact.configuration_item_id]
+      );
+      await connection.execute(
+        `UPDATE change_request_configuration_impacts
+         SET status = 'CHANGED', old_version = ?, new_version = ?,
+             deliverable_notes = ?, document_id = ?, resolved_by = ?, resolved_at = NOW()
+         WHERE id = ?`,
+        [oldVersion, newVersion, deliverableNotes, documentId, user.id, impact.id]
+      );
+      await connection.execute(
+        `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
+         VALUES (?, ?, 'ECS_VERSIONADO', ?, ?, ?)`,
+        [
+          impact.change_request_id,
+          user.id,
+          impact.request_status,
+          impact.request_status,
+          `${impact.item_name}: V${oldVersion} -> V${newVersion}. ${deliverableNotes}`
+        ]
+      );
+    } else {
+      await connection.execute(
+        `UPDATE change_request_configuration_impacts
+         SET status = 'NO_CHANGE', new_version = NULL, deliverable_notes = ?, resolved_by = ?, resolved_at = NOW()
+         WHERE id = ?`,
+        [deliverableNotes, user.id, impact.id]
+      );
+      await connection.execute(
+        `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
+         VALUES (?, ?, 'ECS_SIN_CAMBIO', ?, ?, ?)`,
+        [
+          impact.change_request_id,
+          user.id,
+          impact.request_status,
+          impact.request_status,
+          `${impact.item_name}: no requiere incremento de version. ${deliverableNotes}`
+        ]
+      );
+    }
+  });
+
+  revalidatePath(`/requests/${impact.change_request_id}`);
+  revalidatePath("/configuration");
+  redirect(`/requests/${impact.change_request_id}?ok=config-impact`);
 }

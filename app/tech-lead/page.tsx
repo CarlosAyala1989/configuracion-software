@@ -76,7 +76,13 @@ export default async function TechLeadPage({
   return (
     <AppShell>
       {params.ok ? <div className="ok-banner">Operacion tecnica registrada.</div> : null}
-      {params.error ? <div className="error-banner">Completa los campos obligatorios.</div> : null}
+      {params.error ? (
+        <div className="error-banner">
+          {params.error === "config-impacts"
+            ? "Resuelve los impactos de elementos SCM antes de enviar el cambio al PM."
+            : "Completa los campos obligatorios."}
+        </div>
+      ) : null}
 
       <Panel id="crear-backlog" title="Crear tarjetas de backlog" eyebrow="Solicitudes aprobadas">
         {requests.length ? (

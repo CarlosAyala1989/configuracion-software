@@ -42,14 +42,35 @@ export default async function RequestsPage({
   }
 
   const canRequest = canUseRole(user, role, ["SOLICITANTE"]);
-  const requests = await query<ChangeRequestRow>(
-    `SELECT cr.*, u.name AS requester_name
-     FROM change_requests cr
-     INNER JOIN users u ON u.id = cr.requester_id
-     WHERE cr.project_id = ? ${user.is_admin ? "" : "AND cr.requester_id = ?"}
-     ORDER BY cr.updated_at DESC`,
-    user.is_admin ? [project.id] : [project.id, user.id]
-  );
+  const [requests, configurationItems] = await Promise.all([
+    query<ChangeRequestRow>(
+      `SELECT cr.*, u.name AS requester_name
+       FROM change_requests cr
+       INNER JOIN users u ON u.id = cr.requester_id
+       WHERE cr.project_id = ? ${user.is_admin ? "" : "AND cr.requester_id = ?"}
+       ORDER BY cr.updated_at DESC`,
+      user.is_admin ? [project.id] : [project.id, user.id]
+    ),
+    query<{
+      id: number;
+      name: string;
+      category: string;
+      current_version: number;
+    }>(
+      `SELECT id, name, category, current_version
+       FROM project_configuration_items
+       WHERE project_id = ? AND active = 1
+       ORDER BY category, name`,
+      [project.id]
+    )
+  ]);
+  const configurationItemsByCategory = configurationItems.reduce<
+    Record<string, typeof configurationItems>
+  >((groups, item) => {
+    groups[item.category] = groups[item.category] || [];
+    groups[item.category].push(item);
+    return groups;
+  }, {});
 
   return (
     <AppShell>
@@ -83,6 +104,31 @@ export default async function RequestsPage({
             <TextArea label="Contexto tecnico conocido" name="technical_context" rows={4} />
             <TextArea label="Criterios de aceptacion" name="acceptance_criteria" rows={4} required />
             <TextArea label="Analisis de impacto" name="impact_analysis" rows={4} required />
+            <div className="field field-wide">
+              <span>Elementos de configuracion que cambian</span>
+              {configurationItems.length ? (
+                <div className="config-category-list">
+                  {Object.entries(configurationItemsByCategory).map(([category, items]) => (
+                    <section key={category} className="config-category">
+                      <h3>{category}</h3>
+                      <div className="config-checkbox-grid">
+                        {items.map((item) => (
+                          <label className="config-check" key={item.id}>
+                            <input name="configuration_item_id" type="checkbox" value={item.id} />
+                            <span>
+                              <strong>{item.name}</strong>
+                              <small>V{item.current_version}</small>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="Sin ECS">Configura los elementos del proyecto antes de solicitar cambios.</EmptyState>
+              )}
+            </div>
             <TextArea label="Plan de rollback o contingencia" name="rollback_plan" rows={4} required />
             <label className="field field-wide">
               <span>Documento de soporte (PDF, DOC, DOCX)</span>

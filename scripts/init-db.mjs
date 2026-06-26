@@ -30,6 +30,9 @@ const connectionConfig = {
 };
 
 const tableOptions = "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+const configurationData = JSON.parse(
+  fs.readFileSync(path.join(root, "lib", "configuration-data.json"), "utf8")
+);
 
 const systemRoles = [
   ["SOLICITANTE", "Solicitante", "SOLICITANTE"],
@@ -68,6 +71,56 @@ const ddl = [
     status ENUM('PLANNED','ACTIVE','ON_HOLD','CLOSED') NOT NULL DEFAULT 'ACTIVE',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ${tableOptions}`,
+  `CREATE TABLE IF NOT EXISTS configuration_templates (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(160) NOT NULL UNIQUE,
+    methodology VARCHAR(40) NOT NULL,
+    description TEXT NULL,
+    created_by BIGINT UNSIGNED NULL,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_configuration_templates_methodology (methodology, active),
+    CONSTRAINT fk_configuration_template_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+  ) ${tableOptions}`,
+  `CREATE TABLE IF NOT EXISTS configuration_template_items (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    template_id BIGINT UNSIGNED NOT NULL,
+    element_code VARCHAR(80) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_configuration_template_item (template_id, element_code),
+    CONSTRAINT fk_configuration_template_item_template FOREIGN KEY (template_id) REFERENCES configuration_templates(id) ON DELETE CASCADE
+  ) ${tableOptions}`,
+  `CREATE TABLE IF NOT EXISTS project_configuration_items (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    project_id BIGINT UNSIGNED NOT NULL,
+    element_code VARCHAR(80) NOT NULL,
+    name VARCHAR(190) NOT NULL,
+    category VARCHAR(120) NOT NULL,
+    methodology VARCHAR(40) NOT NULL,
+    current_version INT UNSIGNED NOT NULL DEFAULT 1,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_project_configuration_item (project_id, element_code),
+    KEY idx_project_configuration_category (project_id, category),
+    CONSTRAINT fk_project_configuration_item_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+  ) ${tableOptions}`,
+  `CREATE TABLE IF NOT EXISTS project_configuration_dependencies (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    project_id BIGINT UNSIGNED NOT NULL,
+    source_item_id BIGINT UNSIGNED NOT NULL,
+    target_item_id BIGINT UNSIGNED NOT NULL,
+    relation_type VARCHAR(80) NOT NULL DEFAULT 'IMPACTA',
+    required TINYINT(1) NOT NULL DEFAULT 1,
+    rationale TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_project_configuration_dependency (project_id, source_item_id, target_item_id),
+    KEY idx_project_configuration_dependency_target (target_item_id),
+    CONSTRAINT fk_project_configuration_dependency_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    CONSTRAINT fk_project_configuration_dependency_source FOREIGN KEY (source_item_id) REFERENCES project_configuration_items(id) ON DELETE CASCADE,
+    CONSTRAINT fk_project_configuration_dependency_target FOREIGN KEY (target_item_id) REFERENCES project_configuration_items(id) ON DELETE CASCADE
   ) ${tableOptions}`,
   `CREATE TABLE IF NOT EXISTS role_definitions (
     code VARCHAR(80) NOT NULL PRIMARY KEY,
@@ -140,6 +193,31 @@ const ddl = [
     KEY idx_change_requester (requester_id),
     CONSTRAINT fk_change_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     CONSTRAINT fk_change_requester FOREIGN KEY (requester_id) REFERENCES users(id)
+  ) ${tableOptions}`,
+  `CREATE TABLE IF NOT EXISTS change_request_configuration_impacts (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    change_request_id BIGINT UNSIGNED NOT NULL,
+    configuration_item_id BIGINT UNSIGNED NOT NULL,
+    source_item_id BIGINT UNSIGNED NULL,
+    impact_type ENUM('DIRECT','RELATED') NOT NULL DEFAULT 'DIRECT',
+    reason TEXT NULL,
+    status ENUM('PENDING','CHANGED','NO_CHANGE') NOT NULL DEFAULT 'PENDING',
+    old_version INT UNSIGNED NOT NULL,
+    new_version INT UNSIGNED NULL,
+    deliverable_notes TEXT NULL,
+    document_id BIGINT UNSIGNED NULL,
+    resolved_by BIGINT UNSIGNED NULL,
+    resolved_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_change_configuration_impact (change_request_id, configuration_item_id),
+    KEY idx_change_configuration_impact_status (change_request_id, status),
+    KEY idx_change_configuration_impact_item (configuration_item_id),
+    KEY idx_change_configuration_impact_document (document_id),
+    CONSTRAINT fk_change_configuration_impact_change FOREIGN KEY (change_request_id) REFERENCES change_requests(id) ON DELETE CASCADE,
+    CONSTRAINT fk_change_configuration_impact_item FOREIGN KEY (configuration_item_id) REFERENCES project_configuration_items(id) ON DELETE CASCADE,
+    CONSTRAINT fk_change_configuration_impact_source FOREIGN KEY (source_item_id) REFERENCES project_configuration_items(id) ON DELETE SET NULL,
+    CONSTRAINT fk_change_configuration_impact_resolver FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
   ) ${tableOptions}`,
   `CREATE TABLE IF NOT EXISTS audit_events (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -222,7 +300,7 @@ const ddl = [
     change_request_id BIGINT UNSIGNED NULL,
     work_item_id BIGINT UNSIGNED NULL,
     uploaded_by BIGINT UNSIGNED NOT NULL,
-    doc_type ENUM('REQUEST_ATTACHMENT','CCB_DECISION','DEV_DOCUMENTATION','QA_EVIDENCE','FINAL_OBSERVATION') NOT NULL,
+    doc_type ENUM('REQUEST_ATTACHMENT','CCB_DECISION','DEV_DOCUMENTATION','QA_EVIDENCE','CONFIGURATION_DELIVERABLE','FINAL_OBSERVATION') NOT NULL,
     file_name VARCHAR(255) NOT NULL,
     mime_type VARCHAR(160) NOT NULL,
     size_bytes INT UNSIGNED NOT NULL,
@@ -253,8 +331,160 @@ const ddl = [
   ) ${tableOptions}`
 ];
 
+function normalizeMethodology(value) {
+  return String(value || "").toLowerCase().includes("rup") ? "RUP" : "AGILE_SCRUM";
+}
+
+function methodologyLabel(value) {
+  const code = normalizeMethodology(value);
+  return configurationData.methodologies.find((item) => item.code === code)?.label || "Agile / Scrum";
+}
+
+function configurationItemsForMethodology(value) {
+  const code = normalizeMethodology(value);
+  return configurationData.items.filter((item) => item.methodologies.includes(code));
+}
+
+function configurationRelationsForMethodology(value) {
+  const code = normalizeMethodology(value);
+  return configurationData.relations.filter((item) => item.methodologies.includes(code));
+}
+
+async function insertConfigurationItems(db, projectId, methodology, codes) {
+  const selected = new Set(codes);
+  const methodologyCode = normalizeMethodology(methodology);
+  const items = configurationItemsForMethodology(methodology).filter((item) => selected.has(item.code));
+
+  for (const item of items) {
+    await db.execute(
+      `INSERT INTO project_configuration_items
+       (project_id, element_code, name, category, methodology)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         name = VALUES(name),
+         category = VALUES(category),
+         methodology = VALUES(methodology),
+         active = 1`,
+      [projectId, item.code, item.name, item.category, methodologyCode]
+    );
+  }
+
+  const [itemRows] = await db.execute(
+    "SELECT id, element_code FROM project_configuration_items WHERE project_id = ? AND active = 1",
+    [projectId]
+  );
+  const idsByCode = new Map(itemRows.map((row) => [row.element_code, row.id]));
+
+  for (const relation of configurationRelationsForMethodology(methodology)) {
+    if (!selected.has(relation.source) || !selected.has(relation.target)) continue;
+    const sourceId = idsByCode.get(relation.source);
+    const targetId = idsByCode.get(relation.target);
+    if (!sourceId || !targetId || sourceId === targetId) continue;
+
+    await db.execute(
+      `INSERT INTO project_configuration_dependencies
+       (project_id, source_item_id, target_item_id, relation_type, required, rationale)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         relation_type = VALUES(relation_type),
+         required = VALUES(required),
+         rationale = VALUES(rationale)`,
+      [
+        projectId,
+        sourceId,
+        targetId,
+        relation.relationType,
+        relation.required ? 1 : 0,
+        relation.rationale
+      ]
+    );
+  }
+}
+
+async function seedConfigurationTemplates(db) {
+  for (const methodology of configurationData.methodologies) {
+    const name = `Plantilla ${methodology.label} completa`;
+    const codes = configurationItemsForMethodology(methodology.code).map((item) => item.code);
+
+    await db.execute(
+      `INSERT INTO configuration_templates (name, methodology, description, created_by, active)
+       VALUES (?, ?, ?, NULL, 1)
+       ON DUPLICATE KEY UPDATE
+         methodology = VALUES(methodology),
+         description = VALUES(description),
+         active = 1`,
+      [
+        name,
+        methodology.code,
+        `Todos los elementos de configuracion base para ${methodology.label}.`
+      ]
+    );
+
+    const [templateRows] = await db.execute("SELECT id FROM configuration_templates WHERE name = ? LIMIT 1", [
+      name
+    ]);
+    const templateId = templateRows[0]?.id;
+    if (!templateId) continue;
+
+    await db.execute("DELETE FROM configuration_template_items WHERE template_id = ?", [templateId]);
+    for (const code of codes) {
+      await db.execute(
+        "INSERT INTO configuration_template_items (template_id, element_code) VALUES (?, ?)",
+        [templateId, code]
+      );
+    }
+  }
+}
+
+async function backfillProjectConfigurationItems(db) {
+  const [projects] = await db.execute("SELECT id, methodology FROM projects");
+  for (const project of projects) {
+    const [countRows] = await db.execute(
+      "SELECT COUNT(*) AS total FROM project_configuration_items WHERE project_id = ?",
+      [project.id]
+    );
+    if (Number(countRows[0]?.total || 0) > 0) continue;
+
+    const codes = configurationItemsForMethodology(project.methodology).map((item) => item.code);
+    await insertConfigurationItems(db, project.id, project.methodology, codes);
+  }
+}
+
+async function ensureColumn(db, table, column, definition) {
+  const [rows] = await db.execute(
+    `SELECT COUNT(*) AS total
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+
+  if (Number(rows[0]?.total || 0) === 0) {
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+  }
+}
+
 async function ensureCompatibleSchema(db) {
   await db.execute("ALTER TABLE project_members MODIFY role VARCHAR(80) NOT NULL");
+  await db.execute(
+    `ALTER TABLE documents
+     MODIFY doc_type ENUM('REQUEST_ATTACHMENT','CCB_DECISION','DEV_DOCUMENTATION','QA_EVIDENCE','CONFIGURATION_DELIVERABLE','FINAL_OBSERVATION') NOT NULL`
+  );
+  await ensureColumn(
+    db,
+    "change_request_configuration_impacts",
+    "deliverable_notes",
+    "deliverable_notes TEXT NULL AFTER new_version"
+  );
+  await ensureColumn(
+    db,
+    "change_request_configuration_impacts",
+    "document_id",
+    "document_id BIGINT UNSIGNED NULL AFTER deliverable_notes"
+  );
+  await seedConfigurationTemplates(db);
+  await backfillProjectConfigurationItems(db);
 }
 
 async function main() {

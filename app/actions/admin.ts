@@ -6,6 +6,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAdmin } from "@/lib/auth";
+import {
+  configurationCodesFromForm,
+  insertProjectConfigurationItems,
+  methodologyForStorage,
+  replaceProjectConfigurationItems,
+  saveConfigurationTemplate
+} from "@/lib/configuration-server";
 import { execute, query, transaction } from "@/lib/db";
 import { nullableText, numberValue, textValue } from "@/lib/forms";
 import { getRoleByCode, isBaseProjectRole, normalizeRoleCode } from "@/lib/roles";
@@ -69,23 +76,89 @@ export async function createUserAction(formData: FormData) {
 }
 
 export async function createProjectAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const title = textValue(formData, "title");
   const description = nullableText(formData, "description");
-  const methodology = textValue(formData, "methodology", "Agile / Scrum");
+  const methodology = methodologyForStorage(textValue(formData, "methodology", "AGILE_SCRUM"));
   const startDate = textValue(formData, "start_date");
   const endDate = textValue(formData, "end_date");
+  const configurationCodes = configurationCodesFromForm(formData);
 
-  if (!title || !startDate || !endDate) redirect("/admin/projects?error=project");
+  if (!title || !startDate || !endDate || configurationCodes.length === 0) {
+    redirect("/admin/projects?error=project");
+  }
 
-  await execute(
-    `INSERT INTO projects (title, description, methodology, start_date, end_date)
-     VALUES (?, ?, ?, ?, ?)`,
-    [title, description, methodology, startDate, endDate]
-  );
+  await transaction(async (connection) => {
+    const [projectInsert] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO projects (title, description, methodology, start_date, end_date)
+       VALUES (?, ?, ?, ?, ?)`,
+      [title, description, methodology, startDate, endDate]
+    );
+
+    await insertProjectConfigurationItems(connection, projectInsert.insertId, methodology, configurationCodes);
+
+    if (formData.get("save_template") === "on") {
+      await saveConfigurationTemplate(connection, {
+        name: textValue(formData, "template_name") || `${title} - ECS`,
+        description: nullableText(formData, "template_description"),
+        methodology,
+        codes: configurationCodes,
+        createdBy: admin.id
+      });
+    }
+  });
 
   revalidatePath("/admin/projects");
+  revalidatePath("/configuration");
   redirect("/admin/projects?ok=project-created");
+}
+
+export async function updateProjectAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const projectId = numberValue(formData, "project_id");
+  const title = textValue(formData, "title");
+  const description = nullableText(formData, "description");
+  const methodology = methodologyForStorage(textValue(formData, "methodology", "AGILE_SCRUM"));
+  const startDate = textValue(formData, "start_date");
+  const endDate = textValue(formData, "end_date");
+  const configurationCodes = configurationCodesFromForm(formData);
+
+  if (!projectId || !title || !startDate || !endDate || configurationCodes.length === 0) {
+    redirect("/admin/projects?error=project");
+  }
+
+  const lockRows = await query<{ total: number }>(
+    "SELECT COUNT(*) AS total FROM change_requests WHERE project_id = ?",
+    [projectId]
+  );
+  if (Number(lockRows[0]?.total || 0) > 0) {
+    redirect("/admin/projects?error=locked");
+  }
+
+  await transaction(async (connection) => {
+    await connection.execute(
+      `UPDATE projects
+       SET title = ?, description = ?, methodology = ?, start_date = ?, end_date = ?
+       WHERE id = ?`,
+      [title, description, methodology, startDate, endDate, projectId]
+    );
+    await replaceProjectConfigurationItems(connection, projectId, methodology, configurationCodes);
+
+    if (formData.get("save_template") === "on") {
+      await saveConfigurationTemplate(connection, {
+        name: textValue(formData, "template_name") || `${title} - ECS`,
+        description: nullableText(formData, "template_description"),
+        methodology,
+        codes: configurationCodes,
+        createdBy: admin.id
+      });
+    }
+  });
+
+  revalidatePath("/admin/projects");
+  revalidatePath("/dashboard");
+  revalidatePath("/configuration");
+  redirect("/admin/projects?ok=project-updated");
 }
 
 export async function assignMemberAction(formData: FormData) {

@@ -70,7 +70,13 @@ export default async function QaPage({
   return (
     <AppShell>
       {params.ok ? <div className="ok-banner">Revision QA registrada.</div> : null}
-      {params.error ? <div className="error-banner">La revision necesita comentarios.</div> : null}
+      {params.error ? (
+        <div className="error-banner">
+          {params.error === "evidence"
+            ? "La revision QA necesita comentarios y evidencia adjunta."
+            : "La revision necesita comentarios."}
+        </div>
+      ) : null}
 
       <Panel id="backlog-qa" title="Backlog de QA" eyebrow="Tarjetas activadas por desarrollo">
         {items.length ? (
@@ -125,7 +131,7 @@ export default async function QaPage({
                   <TextArea label="Resultado de la revision" name="comments" rows={4} required />
                   <label className="field">
                     <span>Evidencia QA (PDF, DOC, DOCX)</span>
-                    <input name="evidence" type="file" accept=".pdf,.doc,.docx" />
+                    <input name="evidence" type="file" required accept=".pdf,.doc,.docx" />
                   </label>
                   <div className="button-row field-wide">
                     <button type="submit" name="verdict" value="approve">

@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  Network,
   ShieldCheck,
   SlidersHorizontal,
   UserCheck,
@@ -35,6 +36,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
+  { href: "/configuration", label: "Elementos SCM", icon: <Network size={18} /> },
   { href: "/requests#crear-solicitud", label: "Crear solicitud", icon: <BadgePlus size={18} />, roles: ["SOLICITANTE"] },
   { href: "/requests#mis-solicitudes", label: "Mis solicitudes", icon: <ListChecks size={18} />, roles: ["SOLICITANTE"] },
   { href: "/pm#revision-solicitudes", label: "Revision PM", icon: <FolderKanban size={18} />, roles: ["JEFE_PROYECTO"] },

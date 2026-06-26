@@ -1,0 +1,587 @@
+{
+  "methodologies": [
+    {
+      "code": "RUP",
+      "label": "RUP"
+    },
+    {
+      "code": "AGILE_SCRUM",
+      "label": "Agile / Scrum"
+    }
+  ],
+  "items": [
+    {
+      "code": "SOURCE_CODE",
+      "name": "Codigo fuente",
+      "category": "Programas y codigo fuente",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Archivos fuente del sistema, servicios, componentes y modulos ejecutables."
+    },
+    {
+      "code": "OBJECT_EXECUTABLES",
+      "name": "Codigo objeto y ejecutables",
+      "category": "Programas y codigo fuente",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Artefactos compilados, binarios, paquetes, APK, DLL o entregables ejecutables."
+    },
+    {
+      "code": "AUTOMATION_SCRIPTS",
+      "name": "Scripts de automatizacion",
+      "category": "Programas y codigo fuente",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Scripts operativos, migraciones, mantenimiento y automatizacion administrativa."
+    },
+    {
+      "code": "THIRD_PARTY_LIBRARIES",
+      "name": "Bibliotecas de terceros",
+      "category": "Programas y codigo fuente",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Frameworks, paquetes y dependencias gestionadas por npm, pip, pub u otro gestor."
+    },
+    {
+      "code": "VISION_DOCUMENT",
+      "name": "Documento de vision",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Vision formal del producto, objetivos, restricciones y necesidades de negocio."
+    },
+    {
+      "code": "SOFTWARE_DEVELOPMENT_PLAN",
+      "name": "Plan de desarrollo de software",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Plan formal de fases, entregables, recursos, iteraciones y seguimiento del proyecto."
+    },
+    {
+      "code": "USE_CASE_SPEC",
+      "name": "Especificacion de casos de uso",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Casos de uso extensos con actores, flujos, precondiciones y postcondiciones."
+    },
+    {
+      "code": "SRS",
+      "name": "Especificacion de requisitos",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Requisitos funcionales, no funcionales, reglas de negocio y restricciones."
+    },
+    {
+      "code": "SAD",
+      "name": "Documento de arquitectura de software",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Arquitectura, decisiones tecnicas, componentes, capas, despliegue y restricciones."
+    },
+    {
+      "code": "UML_MODELS",
+      "name": "Modelos UML",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Diagramas de clases, secuencia, estados, componentes y despliegue."
+    },
+    {
+      "code": "UI_UX_DESIGN",
+      "name": "Diseno UI/UX",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Pantallas, prototipos, flujos de interaccion y criterios visuales."
+    },
+    {
+      "code": "DB_DESIGN_MODEL",
+      "name": "Modelo de diseno de base de datos",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Modelo entidad relacion, vistas logicas, normalizacion y diseno fisico."
+    },
+    {
+      "code": "TECHNICAL_DOCUMENTATION",
+      "name": "Documentacion tecnica",
+      "category": "Documentacion",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Guia tecnica, instalacion, despliegue, operaciones y notas para mantenimiento."
+    },
+    {
+      "code": "USER_DOCUMENTATION",
+      "name": "Documentacion de usuario",
+      "category": "Documentacion",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Manual de usuario final, tutoriales, preguntas frecuentes y guias operativas."
+    },
+    {
+      "code": "DATA_DICTIONARY",
+      "name": "Diccionario de datos",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Definiciones de entidades, campos, reglas, dominios y significado de datos."
+    },
+    {
+      "code": "INSTALLATION_MANUAL",
+      "name": "Manual de instalacion y despliegue",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Procedimientos formales para instalar, configurar, desplegar y recuperar el sistema."
+    },
+    {
+      "code": "RISK_MANAGEMENT_PLAN",
+      "name": "Plan de gestion de riesgos",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Riesgos identificados, mitigaciones, responsables y seguimiento formal."
+    },
+    {
+      "code": "TRACEABILITY_MATRIX",
+      "name": "Matriz de trazabilidad",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Relacion entre requisitos, casos de uso, diseno, codigo, pruebas y entregables."
+    },
+    {
+      "code": "PHASE_BASELINE",
+      "name": "Linea base de fase",
+      "category": "Documentacion",
+      "methodologies": ["RUP"],
+      "description": "Baseline formal de Inicio, Elaboracion, Construccion o Transicion."
+    },
+    {
+      "code": "PRODUCT_BACKLOG",
+      "name": "Product Backlog",
+      "category": "Documentacion",
+      "methodologies": ["AGILE_SCRUM"],
+      "description": "Pila priorizada de funcionalidades, defectos, mejoras y deuda tecnica."
+    },
+    {
+      "code": "SPRINT_BACKLOG",
+      "name": "Sprint Backlog",
+      "category": "Documentacion",
+      "methodologies": ["AGILE_SCRUM"],
+      "description": "Trabajo comprometido para el sprint vigente y su seguimiento operativo."
+    },
+    {
+      "code": "USER_STORY",
+      "name": "Historias de usuario",
+      "category": "Documentacion",
+      "methodologies": ["AGILE_SCRUM"],
+      "description": "Historias vivas con valor de negocio, conversacion y confirmacion."
+    },
+    {
+      "code": "ACCEPTANCE_CRITERIA",
+      "name": "Criterios de aceptacion",
+      "category": "Documentacion",
+      "methodologies": ["AGILE_SCRUM"],
+      "description": "Condiciones verificables para aceptar una historia o incremento."
+    },
+    {
+      "code": "DEFINITION_OF_DONE",
+      "name": "Definition of Done",
+      "category": "Documentacion",
+      "methodologies": ["AGILE_SCRUM"],
+      "description": "Reglas compartidas para considerar terminado un elemento del backlog."
+    },
+    {
+      "code": "ADR",
+      "name": "Registros de decision de arquitectura",
+      "category": "Documentacion",
+      "methodologies": ["AGILE_SCRUM"],
+      "description": "Decisiones tecnicas ligeras, contexto, opciones evaluadas y consecuencias."
+    },
+    {
+      "code": "RELEASE_INCREMENT",
+      "name": "Incremento liberable",
+      "category": "Documentacion",
+      "methodologies": ["AGILE_SCRUM"],
+      "description": "Paquete funcional producido por uno o varios sprints listo para liberar."
+    },
+    {
+      "code": "QA_EVIDENCE",
+      "name": "Evidencias QA",
+      "category": "Elementos de calidad y pruebas",
+      "methodologies": ["AGILE_SCRUM"],
+      "description": "Evidencias ligeras de validacion, capturas, resultados y aprobaciones."
+    },
+    {
+      "code": "CONFIG_FILES",
+      "name": "Archivos de configuracion",
+      "category": "Datos y estructuras de informacion",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Parametros operativos en JSON, XML, YAML, ENV u otros formatos."
+    },
+    {
+      "code": "DB_SCHEMA",
+      "name": "Esquemas y migraciones de base de datos",
+      "category": "Datos y estructuras de informacion",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Tablas, vistas, procedimientos, migraciones y scripts de datos estructurales."
+    },
+    {
+      "code": "TEST_DATA",
+      "name": "Datos de prueba",
+      "category": "Datos y estructuras de informacion",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Datasets controlados para pruebas unitarias, integracion, regresion o estres."
+    },
+    {
+      "code": "BUILD_SCRIPTS",
+      "name": "Scripts de construccion",
+      "category": "Entornos e infraestructura",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Makefile, Gradle, Maven, npm scripts u otros archivos de construccion."
+    },
+    {
+      "code": "IAC",
+      "name": "Infraestructura como codigo",
+      "category": "Entornos e infraestructura",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Dockerfiles, Kubernetes, Terraform, Compose y definiciones de entornos."
+    },
+    {
+      "code": "CI_CD_PIPELINES",
+      "name": "Pipelines CI/CD",
+      "category": "Entornos e infraestructura",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Flujos de integracion, pruebas, empaquetado, despliegue y verificacion automatica."
+    },
+    {
+      "code": "TEST_CASES",
+      "name": "Casos de prueba",
+      "category": "Elementos de calidad y pruebas",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Entradas, condiciones, pasos y resultados esperados de pruebas controladas."
+    },
+    {
+      "code": "AUTOMATED_TESTS",
+      "name": "Pruebas automatizadas",
+      "category": "Elementos de calidad y pruebas",
+      "methodologies": ["AGILE_SCRUM"],
+      "description": "Pruebas unitarias, integracion, contrato, end-to-end o regresion automatizada."
+    },
+    {
+      "code": "DEFECT_REPORTS",
+      "name": "Reportes de defectos",
+      "category": "Elementos de calidad y pruebas",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Bugs, errores, trazas, estado de resolucion y evidencia asociada."
+    },
+    {
+      "code": "AUDIT_LOGS",
+      "name": "Registros de auditoria",
+      "category": "Elementos de calidad y pruebas",
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "description": "Configuracion y criterios de logs operativos, auditoria y trazabilidad tecnica."
+    }
+  ],
+  "relations": [
+    {
+      "methodologies": ["RUP"],
+      "source": "USE_CASE_SPEC",
+      "target": "SRS",
+      "relationType": "TRAZABILIDAD",
+      "required": true,
+      "rationale": "Un cambio en un caso de uso puede modificar requisitos formales."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "USE_CASE_SPEC",
+      "target": "TRACEABILITY_MATRIX",
+      "relationType": "TRAZABILIDAD",
+      "required": true,
+      "rationale": "La matriz debe reflejar la nueva relacion entre caso de uso, diseno, codigo y pruebas."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "USE_CASE_SPEC",
+      "target": "UML_MODELS",
+      "relationType": "DISENO",
+      "required": true,
+      "rationale": "Los flujos del caso de uso suelen afectar diagramas de secuencia, clases o estados."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "USE_CASE_SPEC",
+      "target": "UI_UX_DESIGN",
+      "relationType": "DISENO",
+      "required": true,
+      "rationale": "El flujo funcional puede requerir ajustar pantallas o interacciones."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "USE_CASE_SPEC",
+      "target": "TEST_CASES",
+      "relationType": "VALIDACION",
+      "required": true,
+      "rationale": "Los casos de prueba deben cubrir el flujo actualizado del caso de uso."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "USE_CASE_SPEC",
+      "target": "USER_DOCUMENTATION",
+      "relationType": "DOCUMENTACION",
+      "required": false,
+      "rationale": "El manual puede requerir ajustes si cambia el flujo visible al usuario."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "USE_CASE_SPEC",
+      "target": "SOURCE_CODE",
+      "relationType": "IMPLEMENTACION",
+      "required": true,
+      "rationale": "La implementacion debe alinearse con el caso de uso modificado."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "SRS",
+      "target": "SAD",
+      "relationType": "ARQUITECTURA",
+      "required": true,
+      "rationale": "Un requisito formal puede cambiar responsabilidades o restricciones arquitectonicas."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "SRS",
+      "target": "TEST_CASES",
+      "relationType": "VALIDACION",
+      "required": true,
+      "rationale": "Las pruebas deben demostrar el nuevo requisito."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "SAD",
+      "target": "UML_MODELS",
+      "relationType": "ARQUITECTURA",
+      "required": true,
+      "rationale": "El modelo debe mantenerse consistente con la arquitectura aprobada."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "SAD",
+      "target": "SOURCE_CODE",
+      "relationType": "IMPLEMENTACION",
+      "required": true,
+      "rationale": "El codigo debe respetar la arquitectura actualizada."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "SAD",
+      "target": "INSTALLATION_MANUAL",
+      "relationType": "DESPLIEGUE",
+      "required": false,
+      "rationale": "Cambios de arquitectura pueden modificar pasos de instalacion o despliegue."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "DB_SCHEMA",
+      "target": "DB_DESIGN_MODEL",
+      "relationType": "DATOS",
+      "required": true,
+      "rationale": "El modelo de base de datos debe coincidir con el esquema versionado."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "DB_SCHEMA",
+      "target": "DATA_DICTIONARY",
+      "relationType": "DATOS",
+      "required": true,
+      "rationale": "Los campos nuevos o modificados deben documentarse en el diccionario."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "DB_SCHEMA",
+      "target": "SOURCE_CODE",
+      "relationType": "IMPLEMENTACION",
+      "required": true,
+      "rationale": "El acceso a datos y entidades del codigo dependen del esquema."
+    },
+    {
+      "methodologies": ["RUP"],
+      "source": "DB_SCHEMA",
+      "target": "TEST_DATA",
+      "relationType": "VALIDACION",
+      "required": true,
+      "rationale": "Los datos de prueba deben ajustarse a la nueva estructura."
+    },
+    {
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "source": "SOURCE_CODE",
+      "target": "OBJECT_EXECUTABLES",
+      "relationType": "CONSTRUCCION",
+      "required": true,
+      "rationale": "Un cambio de codigo requiere regenerar o validar los entregables ejecutables."
+    },
+    {
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "source": "SOURCE_CODE",
+      "target": "TEST_CASES",
+      "relationType": "VALIDACION",
+      "required": true,
+      "rationale": "Las pruebas deben cubrir el comportamiento implementado."
+    },
+    {
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "source": "SOURCE_CODE",
+      "target": "BUILD_SCRIPTS",
+      "relationType": "CONSTRUCCION",
+      "required": false,
+      "rationale": "Cambios tecnicos pueden requerir ajustar comandos de construccion."
+    },
+    {
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "source": "SOURCE_CODE",
+      "target": "CI_CD_PIPELINES",
+      "relationType": "AUTOMATIZACION",
+      "required": false,
+      "rationale": "El pipeline debe seguir compilando, probando y desplegando el cambio."
+    },
+    {
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "source": "CONFIG_FILES",
+      "target": "IAC",
+      "relationType": "ENTORNO",
+      "required": false,
+      "rationale": "La infraestructura puede consumir o declarar la configuracion operativa."
+    },
+    {
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "source": "CONFIG_FILES",
+      "target": "CI_CD_PIPELINES",
+      "relationType": "AUTOMATIZACION",
+      "required": false,
+      "rationale": "Los pipelines pueden necesitar variables, secretos o parametros nuevos."
+    },
+    {
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "source": "CONFIG_FILES",
+      "target": "AUDIT_LOGS",
+      "relationType": "OPERACION",
+      "required": false,
+      "rationale": "La observabilidad puede cambiar si se modifican parametros operativos."
+    },
+    {
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "source": "DEFECT_REPORTS",
+      "target": "SOURCE_CODE",
+      "relationType": "CORRECCION",
+      "required": true,
+      "rationale": "Un defecto corregido normalmente se refleja en codigo."
+    },
+    {
+      "methodologies": ["RUP", "AGILE_SCRUM"],
+      "source": "DEFECT_REPORTS",
+      "target": "TEST_CASES",
+      "relationType": "REGRESION",
+      "required": true,
+      "rationale": "Debe existir una prueba que evite repetir el defecto."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "USER_STORY",
+      "target": "ACCEPTANCE_CRITERIA",
+      "relationType": "BACKLOG",
+      "required": true,
+      "rationale": "Una historia modificada debe tener criterios de aceptacion consistentes."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "USER_STORY",
+      "target": "PRODUCT_BACKLOG",
+      "relationType": "BACKLOG",
+      "required": true,
+      "rationale": "El Product Backlog debe reflejar prioridad y alcance actualizados."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "USER_STORY",
+      "target": "SPRINT_BACKLOG",
+      "relationType": "SPRINT",
+      "required": false,
+      "rationale": "Si la historia esta comprometida, el Sprint Backlog debe actualizarse."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "USER_STORY",
+      "target": "SOURCE_CODE",
+      "relationType": "IMPLEMENTACION",
+      "required": true,
+      "rationale": "El incremento debe implementar el cambio de la historia."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "USER_STORY",
+      "target": "AUTOMATED_TESTS",
+      "relationType": "VALIDACION",
+      "required": true,
+      "rationale": "Las pruebas automatizadas son documentacion viva del comportamiento esperado."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "ACCEPTANCE_CRITERIA",
+      "target": "TEST_CASES",
+      "relationType": "VALIDACION",
+      "required": true,
+      "rationale": "Los casos de prueba deben demostrar cada criterio de aceptacion."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "ACCEPTANCE_CRITERIA",
+      "target": "DEFINITION_OF_DONE",
+      "relationType": "CALIDAD",
+      "required": false,
+      "rationale": "El criterio puede exigir ajustar reglas de terminado."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "SPRINT_BACKLOG",
+      "target": "RELEASE_INCREMENT",
+      "relationType": "ENTREGA",
+      "required": false,
+      "rationale": "El incremento liberable debe reflejar cambios comprometidos en el sprint."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "AUTOMATED_TESTS",
+      "target": "CI_CD_PIPELINES",
+      "relationType": "AUTOMATIZACION",
+      "required": true,
+      "rationale": "El pipeline debe ejecutar las pruebas automatizadas relevantes."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "CI_CD_PIPELINES",
+      "target": "IAC",
+      "relationType": "ENTORNO",
+      "required": false,
+      "rationale": "El despliegue automatizado puede depender de infraestructura declarada."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "DB_SCHEMA",
+      "target": "AUTOMATED_TESTS",
+      "relationType": "VALIDACION",
+      "required": true,
+      "rationale": "Las pruebas automatizadas deben cubrir migraciones o cambios de datos."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "DB_SCHEMA",
+      "target": "SOURCE_CODE",
+      "relationType": "IMPLEMENTACION",
+      "required": true,
+      "rationale": "El codigo que consume datos debe actualizarse al cambiar el esquema."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "ADR",
+      "target": "SOURCE_CODE",
+      "relationType": "ARQUITECTURA",
+      "required": true,
+      "rationale": "Las decisiones arquitectonicas aceptadas deben reflejarse en la implementacion."
+    },
+    {
+      "methodologies": ["AGILE_SCRUM"],
+      "source": "ADR",
+      "target": "TECHNICAL_DOCUMENTATION",
+      "relationType": "DOCUMENTACION",
+      "required": false,
+      "rationale": "La documentacion tecnica debe conservar el contexto de la decision."
+    }
+  ]
+}
