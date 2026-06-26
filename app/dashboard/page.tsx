@@ -12,7 +12,7 @@ export default async function DashboardPage() {
 
   if (!project) {
     return (
-      <AppShell>
+      <AppShell showProjectSwitcher>
         <EmptyState title="No hay proyecto activo">
           {user.is_admin ? (
             <Link className="button" href="/admin/projects">
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
   const avgProgress = Math.round(Number(progressRows[0]?.avg_progress || 0));
 
   return (
-    <AppShell>
+    <AppShell showProjectSwitcher>
       <section className="grid grid-4">
         <div className="metric">
           <span>Solicitudes</span>

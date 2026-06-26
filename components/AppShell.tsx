@@ -54,7 +54,13 @@ const navItems: NavItem[] = [
   { href: "/admin/roles", label: "Crear roles", icon: <ShieldCheck size={18} />, adminOnly: true }
 ];
 
-export async function AppShell({ children }: { children: ReactNode }) {
+export async function AppShell({
+  children,
+  showProjectSwitcher = false
+}: {
+  children: ReactNode;
+  showProjectSwitcher?: boolean;
+}) {
   const user = await requireUser();
   const { project, projects, role } = await getActiveProject(user);
   const notifications = await getUnreadNotifications(user.id);
@@ -118,7 +124,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="topbar-actions">
-            {projects.length > 0 ? (
+            {showProjectSwitcher && projects.length > 0 ? (
               <form action={setActiveProjectAction} className="project-switcher">
                 <select name="projectId" defaultValue={project?.id}>
                   {projects.map((item) => (
