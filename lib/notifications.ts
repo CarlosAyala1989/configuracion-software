@@ -36,6 +36,18 @@ export async function notifyUsers(options: {
   }
 }
 
+export async function markChangeRequestNotificationsRead(
+  changeRequestId: number,
+  connection?: PoolConnection
+) {
+  const sql = `UPDATE notifications
+    SET read_at = NOW()
+    WHERE change_request_id = ? AND read_at IS NULL`;
+
+  if (connection) await connection.execute(sql, [changeRequestId]);
+  else await execute(sql, [changeRequestId]);
+}
+
 export async function getProjectUsersByRole(projectId: number, role: ProjectRole) {
   return query<{ id: number; name: string; email: string }>(
     `SELECT DISTINCT u.id, u.name, u.email
@@ -50,7 +62,7 @@ export async function getProjectUsersByRole(projectId: number, role: ProjectRole
   );
 }
 
-export async function getUnreadNotifications(userId: number) {
+export async function getUnreadNotifications(userId: number, projectId: number) {
   return query<{
     id: number;
     title: string;
@@ -61,9 +73,9 @@ export async function getUnreadNotifications(userId: number) {
   }>(
     `SELECT id, title, body, change_request_id, work_item_id, created_at
      FROM notifications
-     WHERE user_id = ? AND read_at IS NULL
+     WHERE user_id = ? AND project_id = ? AND read_at IS NULL
      ORDER BY created_at DESC
      LIMIT 8`,
-    [userId]
+    [userId, projectId]
   );
 }

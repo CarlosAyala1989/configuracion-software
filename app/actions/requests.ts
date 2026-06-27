@@ -1,19 +1,18 @@
 "use server";
 
-import { ResultSetHeader } from "mysql2/promise";
+import { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { canUseRole, getActiveProject, requireProjectRole, requireUser } from "@/lib/auth";
-import {
-  configurationItemIdsFromForm,
-  createChangeRequestConfigurationImpacts,
-  projectConfigurationItemCount
-} from "@/lib/configuration-server";
 import { query, transaction } from "@/lib/db";
 import { saveUploadedDocument } from "@/lib/documents";
 import { fileValue, nullableNumber, nullableText, numberValue, textValue } from "@/lib/forms";
-import { getProjectUsersByRole, notifyUsers } from "@/lib/notifications";
+import {
+  getProjectUsersByRole,
+  markChangeRequestNotificationsRead,
+  notifyUsers
+} from "@/lib/notifications";
 
 async function getRequestForUpdate(id: number) {
   const rows = await query<{ id: number; project_id: number; requester_id: number; status: string; title: string }>(
@@ -23,16 +22,14 @@ async function getRequestForUpdate(id: number) {
   return rows[0];
 }
 
-function hasDetailedRequestFields(formData: FormData) {
+function hasRequesterRequestFields(formData: FormData) {
   return [
     "title",
     "summary",
     "business_reason",
     "affected_area",
     "functional_scope",
-    "acceptance_criteria",
-    "impact_analysis",
-    "rollback_plan"
+    "acceptance_criteria"
   ].every((field) => textValue(formData, field).length > 0);
 }
 
@@ -43,23 +40,31 @@ export async function createChangeRequestAction(formData: FormData) {
   const title = textValue(formData, "title");
   const summary = textValue(formData, "summary");
   const businessReason = textValue(formData, "business_reason");
-  const configurationItemIds = configurationItemIdsFromForm(formData);
-  if (!title || !summary || !businessReason || !hasDetailedRequestFields(formData)) {
-    redirect("/requests?error=required");
-  }
-  if ((await projectConfigurationItemCount(project.id)) > 0 && configurationItemIds.length === 0) {
+  if (!title || !summary || !businessReason || !hasRequesterRequestFields(formData)) {
     redirect("/requests?error=required");
   }
 
   await transaction(async (connection) => {
+    await connection.execute("SELECT id FROM projects WHERE id = ? FOR UPDATE", [project.id]);
+    const [numberRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT COALESCE(MAX(request_number), 0) + 1 AS next_number
+       FROM change_requests
+       WHERE project_id = ?`,
+      [project.id]
+    );
+    const requestNumber = Number(numberRows[0].next_number);
+    const changeCode = `SC - ${String(requestNumber).padStart(2, "0")}`;
+
     const [insert] = await connection.execute<ResultSetHeader>(
       `INSERT INTO change_requests
-       (change_code, project_id, requester_id, title, summary, business_reason, affected_area,
+       (change_code, project_id, request_number, requester_id, title, summary, business_reason, affected_area,
         priority, risk_level, budget_impact, requested_deadline, functional_scope, technical_context,
         acceptance_criteria, impact_analysis, rollback_plan, status)
-       VALUES ('PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PM_REVIEW')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PM_REVIEW')`,
       [
+        changeCode,
         project.id,
+        requestNumber,
         user.id,
         title,
         summary,
@@ -78,16 +83,6 @@ export async function createChangeRequestAction(formData: FormData) {
     );
 
     const requestId = insert.insertId;
-    const changeCode = `SGCS-${String(requestId).padStart(5, "0")}`;
-    await connection.execute("UPDATE change_requests SET change_code = ? WHERE id = ?", [
-      changeCode,
-      requestId
-    ]);
-    await createChangeRequestConfigurationImpacts(connection, {
-      projectId: project.id,
-      changeRequestId: requestId,
-      selectedItemIds: configurationItemIds
-    });
 
     await connection.execute(
       `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
@@ -116,7 +111,8 @@ export async function createChangeRequestAction(formData: FormData) {
   });
 
   revalidatePath("/requests");
-  redirect("/requests?ok=request-created");
+  revalidatePath("/requests/mine");
+  redirect("/requests/mine?ok=request-created");
 }
 
 export async function requesterResubmitAction(formData: FormData) {
@@ -126,16 +122,12 @@ export async function requesterResubmitAction(formData: FormData) {
 
   const requestId = numberValue(formData, "request_id");
   const request = await getRequestForUpdate(requestId);
-  if (!request || request.project_id !== project.id) redirect("/requests");
-  if (request.requester_id !== user.id) redirect("/requests");
-  if (!["REQUESTER_NEGOTIATION"].includes(request.status)) redirect("/requests");
+  if (!request || request.project_id !== project.id) redirect("/requests/mine");
+  if (request.requester_id !== user.id) redirect("/requests/mine");
+  if (!["REQUESTER_NEGOTIATION"].includes(request.status)) redirect("/requests/mine");
 
   const comment = textValue(formData, "comment");
-  const configurationItemIds = configurationItemIdsFromForm(formData);
-  if (!comment || !hasDetailedRequestFields(formData)) redirect(`/requests/${requestId}?error=required`);
-  if ((await projectConfigurationItemCount(project.id)) > 0 && configurationItemIds.length === 0) {
-    redirect(`/requests/${requestId}?error=required`);
-  }
+  if (!comment || !hasRequesterRequestFields(formData)) redirect(`/requests/${requestId}?error=required`);
 
   await transaction(async (connection) => {
     await connection.execute(
@@ -163,20 +155,13 @@ export async function requesterResubmitAction(formData: FormData) {
       ]
     );
 
+    await markChangeRequestNotificationsRead(requestId, connection);
+
     await connection.execute(
       `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
        VALUES (?, ?, 'SOLICITANTE_REENVIA', ?, 'PM_REVIEW', ?)`,
       [requestId, user.id, request.status, comment || "Solicitud ajustada y reenviada."]
     );
-    await connection.execute(
-      "DELETE FROM change_request_configuration_impacts WHERE change_request_id = ?",
-      [requestId]
-    );
-    await createChangeRequestConfigurationImpacts(connection, {
-      projectId: project.id,
-      changeRequestId: requestId,
-      selectedItemIds: configurationItemIds
-    });
 
     await saveUploadedDocument({
       file: fileValue(formData, "attachment"),
@@ -199,6 +184,7 @@ export async function requesterResubmitAction(formData: FormData) {
   });
 
   revalidatePath(`/requests/${requestId}`);
+  revalidatePath("/requests/mine");
   redirect(`/requests/${requestId}?ok=resubmitted`);
 }
 
@@ -222,16 +208,19 @@ export async function pmDecisionAction(formData: FormData) {
     action = "PM_APRUEBA";
   }
   if (decision === "reject") {
+    if (fromStatus !== "PM_REVIEW") redirect("/pm");
     toStatus = "REQUESTER_NEGOTIATION";
     action = "PM_RECHAZA";
   }
   if (decision === "ccb") {
+    if (fromStatus !== "PM_REVIEW") redirect("/pm");
     toStatus = "CCB_REVIEW";
     action = "PM_ESCALA_CCB";
   }
 
   await transaction(async (connection) => {
     await connection.execute("UPDATE change_requests SET status = ? WHERE id = ?", [toStatus, requestId]);
+    await markChangeRequestNotificationsRead(requestId, connection);
     await connection.execute(
       `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -294,6 +283,7 @@ export async function ccbDecisionAction(formData: FormData) {
 
   await transaction(async (connection) => {
     await connection.execute("UPDATE change_requests SET status = ? WHERE id = ?", [toStatus, requestId]);
+    await markChangeRequestNotificationsRead(requestId, connection);
     await connection.execute(
       `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
        VALUES (?, ?, ?, 'CCB_REVIEW', ?, ?)`,
@@ -334,6 +324,7 @@ export async function pmSendToRequesterAction(formData: FormData) {
     await connection.execute("UPDATE change_requests SET status = 'REQUESTER_VALIDATION' WHERE id = ?", [
       requestId
     ]);
+    await markChangeRequestNotificationsRead(requestId, connection);
     await connection.execute(
       `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
        VALUES (?, ?, 'PM_ENVIA_SOLICITANTE', 'PM_FINAL_REVIEW', 'REQUESTER_VALIDATION', ?)`,
@@ -363,12 +354,13 @@ export async function requesterFinalDecisionAction(formData: FormData) {
   const comment = textValue(formData, "comment");
   const request = await getRequestForUpdate(requestId);
   if (!request || request.project_id !== project.id || request.status !== "REQUESTER_VALIDATION") {
-    redirect("/requests");
+    redirect("/requests/mine");
   }
-  if (request.requester_id !== user.id) redirect("/requests");
+  if (request.requester_id !== user.id) redirect("/requests/mine");
   if (decision !== "approve" && !comment) redirect(`/requests/${requestId}?error=comment`);
 
   await transaction(async (connection) => {
+    await markChangeRequestNotificationsRead(requestId, connection);
     if (decision === "approve") {
       await connection.execute(
         "UPDATE change_requests SET status = 'CLOSED_APPROVED', closed_at = NOW() WHERE id = ?",

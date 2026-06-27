@@ -58,7 +58,7 @@ export default async function AdminTeamsPage({
   }));
 
   return (
-    <AppShell>
+    <AppShell showProjectHeader={false}>
       {params.ok ? <div className="ok-banner">Equipo de trabajo actualizado.</div> : null}
       {params.error ? <div className="error-banner">Revisa el nombre, usuarios y roles del equipo.</div> : null}
 

@@ -52,7 +52,7 @@ export default async function AdminAssignmentsPage({
   const teamOptions = teams.map((team) => ({ label: team.name, value: team.id }));
 
   return (
-    <AppShell>
+    <AppShell showProjectHeader={false}>
       {params.ok ? <div className="ok-banner">Asignaciones actualizadas.</div> : null}
       {params.error ? <div className="error-banner">Revisa los datos de asignacion.</div> : null}
 

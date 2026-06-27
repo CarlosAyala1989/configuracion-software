@@ -5,10 +5,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireProjectRole } from "@/lib/auth";
+import { DEVELOPER_CONFIGURATION_CODES } from "@/lib/configuration";
+import { createDeveloperConfigurationImpacts } from "@/lib/configuration-server";
 import { query, transaction } from "@/lib/db";
 import { saveUploadedDocument } from "@/lib/documents";
 import { clampPercent, fileValue, nullableNumber, nullableText, numberValue, textValue } from "@/lib/forms";
-import { getProjectUsersByRole, notifyUsers } from "@/lib/notifications";
+import {
+  getProjectUsersByRole,
+  markChangeRequestNotificationsRead,
+  notifyUsers
+} from "@/lib/notifications";
 
 async function getWorkItem(id: number) {
   const rows = await query<{
@@ -25,23 +31,46 @@ async function getWorkItem(id: number) {
   return rows[0];
 }
 
+async function requireDeliveryPlan(projectId: number, redirectPath = "/tech-lead/backlog") {
+  const plans = await query<{ project_id: number }>(
+    "SELECT project_id FROM project_delivery_plans WHERE project_id = ? LIMIT 1",
+    [projectId]
+  );
+  if (!plans[0]) redirect(`${redirectPath}?error=delivery-plan`);
+}
+
 export async function createDevBacklogItemAction(formData: FormData) {
   const { user, project } = await requireProjectRole(["LIDER_TECNICO"]);
+  await requireDeliveryPlan(project.id);
   const requestId = numberValue(formData, "request_id");
   const title = textValue(formData, "title");
   const description = textValue(formData, "description");
-  if (!requestId || !title || !description) redirect("/tech-lead?error=required");
+  if (!requestId || !title || !description) redirect("/tech-lead/backlog?error=required");
 
-  const requests = await query<{ id: number; status: string; title: string }>(
-    "SELECT id, status, title FROM change_requests WHERE id = ? AND project_id = ? LIMIT 1",
+  const requests = await query<{ id: number; status: string; title: string; delivery_id: number | null }>(
+    "SELECT id, status, title, delivery_id FROM change_requests WHERE id = ? AND project_id = ? LIMIT 1",
     [requestId, project.id]
   );
   const request = requests[0];
-  if (!request || !["TECH_LEAD_REQUIREMENTS", "DEV_IN_PROGRESS"].includes(request.status)) {
-    redirect("/tech-lead");
+  if (!request || request.status !== "TECH_LEAD_REQUIREMENTS") {
+    redirect("/tech-lead/backlog");
   }
+  if (!request.delivery_id) redirect("/tech-lead/backlog?error=delivery-required");
 
-  await transaction(async (connection) => {
+  const devWorkItemId = await transaction(async (connection) => {
+    const [claim] = await connection.execute<ResultSetHeader>(
+      `UPDATE change_requests
+       SET status = 'DEV_IN_PROGRESS'
+       WHERE id = ?
+         AND project_id = ?
+         AND delivery_id IS NOT NULL
+         AND status = 'TECH_LEAD_REQUIREMENTS'`,
+      [requestId, project.id]
+    );
+    if (claim.affectedRows !== 1) return null;
+
+    await createDeveloperConfigurationImpacts(connection, project.id, requestId);
+
     const [devInsert] = await connection.execute<ResultSetHeader>(
       `INSERT INTO work_items
        (project_id, change_request_id, type, title, description, acceptance_criteria, definition_of_done,
@@ -61,7 +90,7 @@ export async function createDevBacklogItemAction(formData: FormData) {
       ]
     );
 
-    const devWorkItemId = devInsert.insertId;
+    const createdDevWorkItemId = devInsert.insertId;
     await connection.execute(
       `INSERT INTO work_items
        (project_id, change_request_id, parent_work_item_id, type, title, description, acceptance_criteria,
@@ -70,9 +99,9 @@ export async function createDevBacklogItemAction(formData: FormData) {
       [
         project.id,
         requestId,
-        devWorkItemId,
+        createdDevWorkItemId,
         `QA - ${title}`,
-        `Validar la tarjeta de desarrollo #${devWorkItemId}: ${description}`,
+        `Validar la tarjeta de desarrollo #${createdDevWorkItemId}: ${description}`,
         nullableText(formData, "acceptance_criteria"),
         "Revisar evidencias, documentos, criterios de aceptacion y registrar aprobacion o rechazo.",
         nullableNumber(formData, "qa_id"),
@@ -82,17 +111,15 @@ export async function createDevBacklogItemAction(formData: FormData) {
       ]
     );
 
-    await connection.execute("UPDATE change_requests SET status = 'DEV_IN_PROGRESS' WHERE id = ?", [
-      requestId
-    ]);
+    await markChangeRequestNotificationsRead(requestId, connection);
     await connection.execute(
       `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
        VALUES (?, ?, 'TL_CREA_TARJETA_DEV_QA', ?, 'DEV_IN_PROGRESS', ?)`,
       [
         requestId,
         user.id,
-        request.status,
-        `Tarjeta DEV #${devWorkItemId} creada y tarjeta QA referenciada automaticamente.`
+        "TECH_LEAD_REQUIREMENTS",
+        `Tarjeta DEV #${createdDevWorkItemId} creada y tarjeta QA referenciada automaticamente.`
       ]
     );
 
@@ -102,16 +129,21 @@ export async function createDevBacklogItemAction(formData: FormData) {
         userIds: [developerId],
         projectId: project.id,
         changeRequestId: requestId,
-        workItemId: devWorkItemId,
+        workItemId: createdDevWorkItemId,
         title: "Nueva tarjeta de desarrollo",
         body: title,
         connection
       });
     }
+
+    return createdDevWorkItemId;
   });
 
-  revalidatePath("/tech-lead");
-  redirect("/tech-lead?ok=work-created");
+  if (!devWorkItemId) redirect("/tech-lead/backlog");
+
+  revalidatePath("/tech-lead/backlog");
+  revalidatePath("/tech-lead/work-items");
+  redirect("/tech-lead/backlog?ok=work-created");
 }
 
 export async function developerProgressAction(formData: FormData) {
@@ -123,7 +155,7 @@ export async function developerProgressAction(formData: FormData) {
   if (!["NEW", "ACTIVE"].includes(item.status)) redirect("/developer");
 
   const progress = clampPercent(numberValue(formData, "progress_percent"));
-  const remaining = clampPercent(numberValue(formData, "remaining_percent", 100 - progress));
+  const remaining = 100 - progress;
   const markComplete = formData.get("mark_complete") === "on";
   const githubBranch = nullableText(formData, "github_branch");
   const workDate = textValue(formData, "work_date");
@@ -132,8 +164,58 @@ export async function developerProgressAction(formData: FormData) {
   const tomorrowPlan = textValue(formData, "tomorrow_plan");
   const documentation = fileValue(formData, "documentation");
 
-  if (!workDate || hoursSpent <= 0 || !todayDone || !tomorrowPlan) redirect("/developer?error=required");
-  if (markComplete && (!githubBranch || !documentation)) redirect("/developer?error=complete-doc");
+  const placeholders = DEVELOPER_CONFIGURATION_CODES.map(() => "?").join(", ");
+  const [developerImpacts, expectedItemRows] = await Promise.all([
+    query<{
+      id: number;
+      status: string;
+      configuration_item_id: number;
+      item_name: string;
+    }>(
+      `SELECT cri.id, cri.status, cri.configuration_item_id, pci.name AS item_name
+       FROM change_request_configuration_impacts cri
+       INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+       WHERE cri.change_request_id = ?
+         AND pci.element_code IN (${placeholders})
+       ORDER BY pci.category, pci.name`,
+      [item.change_request_id, ...DEVELOPER_CONFIGURATION_CODES]
+    ),
+    query<{ total: number }>(
+      `SELECT COUNT(*) AS total
+       FROM project_configuration_items
+       WHERE project_id = ?
+         AND active = 1
+         AND element_code IN (${placeholders})`,
+      [project.id, ...DEVELOPER_CONFIGURATION_CODES]
+    )
+  ]);
+  const pendingImpactResolutions = developerImpacts
+    .filter((impact) => impact.status === "PENDING")
+    .map((impact) => ({
+      ...impact,
+      resolution: textValue(formData, `impact_resolution_${impact.id}`),
+      notes: textValue(formData, `impact_notes_${impact.id}`),
+      deliverable: fileValue(formData, `impact_file_${impact.id}`)
+    }));
+
+  if (!workDate || hoursSpent <= 0 || !todayDone || !tomorrowPlan) {
+    redirect(`/developer?error=required&item=${workItemId}`);
+  }
+  if (markComplete && (!githubBranch || !documentation)) {
+    redirect(`/developer?error=complete-doc&item=${workItemId}`);
+  }
+  if (
+    markComplete &&
+    (developerImpacts.length !== Number(expectedItemRows[0]?.total || 0) ||
+      pendingImpactResolutions.some(
+        (impact) =>
+          !["changed", "no_change"].includes(impact.resolution) ||
+          !impact.notes ||
+          (impact.resolution === "changed" && !impact.deliverable)
+      ))
+  ) {
+    redirect(`/developer?error=config-items&item=${workItemId}`);
+  }
 
   await transaction(async (connection) => {
     await connection.execute(
@@ -166,6 +248,71 @@ export async function developerProgressAction(formData: FormData) {
     });
 
     if (markComplete) {
+      for (const impact of pendingImpactResolutions) {
+        const [impactRows] = await connection.execute<RowDataPacket[]>(
+          `SELECT cri.id, cri.status, pci.id AS configuration_item_id,
+                  pci.name AS item_name, pci.current_version
+           FROM change_request_configuration_impacts cri
+           INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+           WHERE cri.id = ? AND cri.change_request_id = ?
+           FOR UPDATE`,
+          [impact.id, item.change_request_id]
+        );
+        const currentImpact = impactRows[0];
+        if (!currentImpact || currentImpact.status !== "PENDING") continue;
+
+        if (impact.resolution === "changed") {
+          const oldVersion = Number(currentImpact.current_version || 1);
+          const newVersion = oldVersion + 1;
+          const documentId = await saveUploadedDocument({
+            file: impact.deliverable,
+            projectId: project.id,
+            changeRequestId: item.change_request_id,
+            workItemId,
+            uploadedBy: user.id,
+            docType: "CONFIGURATION_DELIVERABLE",
+            connection
+          });
+          await connection.execute(
+            "UPDATE project_configuration_items SET current_version = ? WHERE id = ?",
+            [newVersion, currentImpact.configuration_item_id]
+          );
+          await connection.execute(
+            `UPDATE change_request_configuration_impacts
+             SET status = 'CHANGED', old_version = ?, new_version = ?, deliverable_notes = ?,
+                 document_id = ?, resolved_by = ?, resolved_at = NOW()
+             WHERE id = ?`,
+            [oldVersion, newVersion, impact.notes, documentId, user.id, impact.id]
+          );
+          await connection.execute(
+            `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
+             VALUES (?, ?, 'ECS_VERSIONADO', 'DEV_IN_PROGRESS', 'DEV_IN_PROGRESS', ?)`,
+            [
+              item.change_request_id,
+              user.id,
+              `${currentImpact.item_name}: V${oldVersion} -> V${newVersion}. ${impact.notes}`
+            ]
+          );
+        } else {
+          await connection.execute(
+            `UPDATE change_request_configuration_impacts
+             SET status = 'NO_CHANGE', new_version = NULL, deliverable_notes = ?,
+                 resolved_by = ?, resolved_at = NOW()
+             WHERE id = ?`,
+            [impact.notes, user.id, impact.id]
+          );
+          await connection.execute(
+            `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
+             VALUES (?, ?, 'ECS_SIN_CAMBIO', 'DEV_IN_PROGRESS', 'DEV_IN_PROGRESS', ?)`,
+            [
+              item.change_request_id,
+              user.id,
+              `${currentImpact.item_name}: no requiere incremento de version. ${impact.notes}`
+            ]
+          );
+        }
+      }
+
       await connection.execute(
         `UPDATE work_items
          SET status = 'COMPLETED', progress_percent = 100, remaining_percent = 0, github_branch = ?, completed_at = NOW()
@@ -180,6 +327,7 @@ export async function developerProgressAction(formData: FormData) {
         "UPDATE change_requests SET status = 'QA_WAITING' WHERE id = ?",
         [item.change_request_id]
       );
+      await markChangeRequestNotificationsRead(item.change_request_id, connection);
       await connection.execute(
         `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
          VALUES (?, ?, 'DEV_COMPLETA_TARJETA', 'DEV_IN_PROGRESS', 'QA_WAITING', ?)`,
@@ -207,6 +355,9 @@ export async function developerProgressAction(formData: FormData) {
   });
 
   revalidatePath("/developer");
+  revalidatePath("/developer/reports");
+  revalidatePath(`/requests/${item.change_request_id}`);
+  revalidatePath("/configuration");
   redirect("/developer?ok=progress");
 }
 
@@ -220,7 +371,7 @@ export async function qaReviewAction(formData: FormData) {
   if (!qaItem || qaItem.project_id !== project.id || qaItem.type !== "QA") redirect("/qa");
   if (!["QA_READY", "QA_ACTIVE"].includes(qaItem.status)) redirect("/qa");
   if (!["approve", "reject"].includes(verdict)) redirect("/qa");
-  if (!comments || !evidence) redirect("/qa?error=evidence");
+  if (!comments || !evidence) redirect(`/qa?error=evidence&item=${qaWorkItemId}`);
 
   const devItem = qaItem.parent_work_item_id ? await getWorkItem(qaItem.parent_work_item_id) : null;
   if (!devItem) redirect("/qa");
@@ -267,6 +418,7 @@ export async function qaReviewAction(formData: FormData) {
           "UPDATE change_requests SET status = 'TECH_LEAD_REVIEW' WHERE id = ?",
           [qaItem.change_request_id]
         );
+        await markChangeRequestNotificationsRead(qaItem.change_request_id, connection);
         const leads = await getProjectUsersByRole(project.id, "LIDER_TECNICO");
         await notifyUsers({
           userIds: leads.map((lead) => lead.id),
@@ -303,6 +455,7 @@ export async function qaReviewAction(formData: FormData) {
          WHERE id = ?`,
         [qaItem.change_request_id]
       );
+      await markChangeRequestNotificationsRead(qaItem.change_request_id, connection);
       await connection.execute(
         `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
          VALUES (?, ?, 'QA_RECHAZA', 'QA_WAITING', 'QA_REJECTED_DEV_REWORK', ?)`,
@@ -329,6 +482,7 @@ export async function qaReviewAction(formData: FormData) {
 
 export async function tlSendToPmAction(formData: FormData) {
   const { user, project } = await requireProjectRole(["LIDER_TECNICO"]);
+  await requireDeliveryPlan(project.id, "/tech-lead/release");
   const requestId = numberValue(formData, "request_id");
   const comment = textValue(formData, "comment");
   const rows = await query<{ id: number; status: string; title: string }>(
@@ -336,20 +490,21 @@ export async function tlSendToPmAction(formData: FormData) {
     [requestId, project.id]
   );
   const request = rows[0];
-  if (!request || request.status !== "TECH_LEAD_REVIEW") redirect("/tech-lead");
+  if (!request || request.status !== "TECH_LEAD_REVIEW") redirect("/tech-lead/release");
   const pendingImpacts = await query<{ total: number }>(
     `SELECT COUNT(*) AS total
      FROM change_request_configuration_impacts
      WHERE change_request_id = ? AND status = 'PENDING'`,
     [requestId]
   );
-  if (Number(pendingImpacts[0]?.total || 0) > 0) redirect("/tech-lead?error=config-impacts");
+  if (Number(pendingImpacts[0]?.total || 0) > 0) redirect("/tech-lead/release?error=config-impacts");
 
   await transaction(async (connection) => {
     await connection.execute(
       "UPDATE change_requests SET status = 'PM_FINAL_REVIEW' WHERE id = ?",
       [requestId]
     );
+    await markChangeRequestNotificationsRead(requestId, connection);
     await connection.execute(
       `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
        VALUES (?, ?, 'TL_ENVIA_PM', 'TECH_LEAD_REVIEW', 'PM_FINAL_REVIEW', ?)`,
@@ -366,6 +521,6 @@ export async function tlSendToPmAction(formData: FormData) {
     });
   });
 
-  revalidatePath("/tech-lead");
-  redirect("/tech-lead?ok=sent-pm");
+  revalidatePath("/tech-lead/release");
+  redirect("/tech-lead/release?ok=sent-pm");
 }

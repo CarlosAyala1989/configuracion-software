@@ -14,6 +14,8 @@ import {
   saveConfigurationTemplate
 } from "@/lib/configuration-server";
 import { execute, query, transaction } from "@/lib/db";
+import { buildDeliveryPeriods, parseDeliveryCadence } from "@/lib/deliveries";
+import { replaceProjectDeliveryPlan } from "@/lib/deliveries-server";
 import { nullableText, numberValue, textValue } from "@/lib/forms";
 import { getRoleByCode, isBaseProjectRole, normalizeRoleCode } from "@/lib/roles";
 
@@ -83,8 +85,15 @@ export async function createProjectAction(formData: FormData) {
   const startDate = textValue(formData, "start_date");
   const endDate = textValue(formData, "end_date");
   const configurationCodes = configurationCodesFromForm(formData);
+  const createDeliveryPlan = formData.get("create_delivery_plan") === "on";
+  const deliveryCadence = parseDeliveryCadence(textValue(formData, "delivery_cadence"));
 
-  if (!title || !startDate || !endDate || configurationCodes.length === 0) {
+  if (
+    !title ||
+    buildDeliveryPeriods(startDate, endDate, "DAY").length === 0 ||
+    configurationCodes.length === 0 ||
+    (createDeliveryPlan && !deliveryCadence)
+  ) {
     redirect("/admin/projects?error=project");
   }
 
@@ -96,6 +105,15 @@ export async function createProjectAction(formData: FormData) {
     );
 
     await insertProjectConfigurationItems(connection, projectInsert.insertId, methodology, configurationCodes);
+    if (createDeliveryPlan && deliveryCadence) {
+      await replaceProjectDeliveryPlan(connection, {
+        projectId: projectInsert.insertId,
+        startDate,
+        endDate,
+        cadence: deliveryCadence,
+        createdBy: admin.id
+      });
+    }
 
     if (formData.get("save_template") === "on") {
       await saveConfigurationTemplate(connection, {
@@ -122,8 +140,16 @@ export async function updateProjectAction(formData: FormData) {
   const startDate = textValue(formData, "start_date");
   const endDate = textValue(formData, "end_date");
   const configurationCodes = configurationCodesFromForm(formData);
+  const createDeliveryPlan = formData.get("create_delivery_plan") === "on";
+  const deliveryCadence = parseDeliveryCadence(textValue(formData, "delivery_cadence"));
 
-  if (!projectId || !title || !startDate || !endDate || configurationCodes.length === 0) {
+  if (
+    !projectId ||
+    !title ||
+    buildDeliveryPeriods(startDate, endDate, "DAY").length === 0 ||
+    configurationCodes.length === 0 ||
+    (createDeliveryPlan && !deliveryCadence)
+  ) {
     redirect("/admin/projects?error=project");
   }
 
@@ -143,6 +169,17 @@ export async function updateProjectAction(formData: FormData) {
       [title, description, methodology, startDate, endDate, projectId]
     );
     await replaceProjectConfigurationItems(connection, projectId, methodology, configurationCodes);
+    if (createDeliveryPlan && deliveryCadence) {
+      await replaceProjectDeliveryPlan(connection, {
+        projectId,
+        startDate,
+        endDate,
+        cadence: deliveryCadence,
+        createdBy: admin.id
+      });
+    } else {
+      await connection.execute("DELETE FROM project_delivery_plans WHERE project_id = ?", [projectId]);
+    }
 
     if (formData.get("save_template") === "on") {
       await saveConfigurationTemplate(connection, {
@@ -158,6 +195,9 @@ export async function updateProjectAction(formData: FormData) {
   revalidatePath("/admin/projects");
   revalidatePath("/dashboard");
   revalidatePath("/configuration");
+  revalidatePath("/tech-lead/backlog");
+  revalidatePath("/tech-lead/release");
+  revalidatePath("/tech-lead/work-items");
   redirect("/admin/projects?ok=project-updated");
 }
 

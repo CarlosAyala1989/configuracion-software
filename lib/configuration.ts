@@ -28,6 +28,28 @@ export const METHODOLOGY_OPTIONS = configurationData.methodologies as Methodolog
 export const CONFIGURATION_ITEMS = configurationData.items as ConfigurationItemDefinition[];
 export const CONFIGURATION_RELATIONS = configurationData.relations as ConfigurationRelationDefinition[];
 
+export const DEVELOPER_CONFIGURATION_CODES = [
+  "SOURCE_CODE",
+  "OBJECT_EXECUTABLES",
+  "AUTOMATION_SCRIPTS",
+  "THIRD_PARTY_LIBRARIES",
+  "SAD",
+  "UML_MODELS",
+  "DB_DESIGN_MODEL",
+  "TECHNICAL_DOCUMENTATION",
+  "DATA_DICTIONARY",
+  "INSTALLATION_MANUAL",
+  "ADR",
+  "RELEASE_INCREMENT",
+  "CONFIG_FILES",
+  "DB_SCHEMA",
+  "BUILD_SCRIPTS",
+  "IAC",
+  "CI_CD_PIPELINES",
+  "AUTOMATED_TESTS",
+  "AUDIT_LOGS"
+] as const;
+
 export const CONFIGURATION_IMPACT_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendiente",
   CHANGED: "Cambiado",

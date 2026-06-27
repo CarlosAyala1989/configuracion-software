@@ -90,6 +90,8 @@ export type ChangeRequestRow = {
   id: number;
   change_code: string;
   project_id: number;
+  request_number: number;
+  delivery_id: number | null;
   requester_id: number;
   requester_name?: string;
   title: string;

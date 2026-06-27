@@ -21,7 +21,7 @@ export default async function AdminUsersPage({
   }>("SELECT id, name, email, is_admin, active, created_at FROM users ORDER BY created_at DESC");
 
   return (
-    <AppShell>
+    <AppShell showProjectHeader={false}>
       {params.ok ? <div className="ok-banner">Usuario actualizado.</div> : null}
       {params.error ? <div className="error-banner">Revisa los campos del usuario.</div> : null}
 

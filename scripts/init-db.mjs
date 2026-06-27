@@ -43,6 +43,28 @@ const systemRoles = [
   ["QA", "QA", "QA"]
 ];
 
+const developerConfigurationCodes = [
+  "SOURCE_CODE",
+  "OBJECT_EXECUTABLES",
+  "AUTOMATION_SCRIPTS",
+  "THIRD_PARTY_LIBRARIES",
+  "SAD",
+  "UML_MODELS",
+  "DB_DESIGN_MODEL",
+  "TECHNICAL_DOCUMENTATION",
+  "DATA_DICTIONARY",
+  "INSTALLATION_MANUAL",
+  "ADR",
+  "RELEASE_INCREMENT",
+  "CONFIG_FILES",
+  "DB_SCHEMA",
+  "BUILD_SCRIPTS",
+  "IAC",
+  "CI_CD_PIPELINES",
+  "AUTOMATED_TESTS",
+  "AUDIT_LOGS"
+];
+
 const ddl = [
   `CREATE TABLE IF NOT EXISTS users (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -71,6 +93,28 @@ const ddl = [
     status ENUM('PLANNED','ACTIVE','ON_HOLD','CLOSED') NOT NULL DEFAULT 'ACTIVE',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ${tableOptions}`,
+  `CREATE TABLE IF NOT EXISTS project_delivery_plans (
+    project_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    cadence ENUM('DAY','WEEK') NOT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_delivery_plan_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    CONSTRAINT fk_delivery_plan_creator FOREIGN KEY (created_by) REFERENCES users(id)
+  ) ${tableOptions}`,
+  `CREATE TABLE IF NOT EXISTS project_deliveries (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    project_id BIGINT UNSIGNED NOT NULL,
+    sequence_number INT UNSIGNED NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    status ENUM('PLANNED','COMPLETED') NOT NULL DEFAULT 'PLANNED',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_project_delivery_sequence (project_id, sequence_number),
+    KEY idx_project_delivery_dates (project_id, start_date, end_date),
+    CONSTRAINT fk_project_delivery_plan FOREIGN KEY (project_id) REFERENCES project_delivery_plans(project_id) ON DELETE CASCADE
   ) ${tableOptions}`,
   `CREATE TABLE IF NOT EXISTS configuration_templates (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -168,8 +212,10 @@ const ddl = [
   ) ${tableOptions}`,
   `CREATE TABLE IF NOT EXISTS change_requests (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    change_code VARCHAR(40) NOT NULL UNIQUE,
+    change_code VARCHAR(40) NOT NULL,
     project_id BIGINT UNSIGNED NOT NULL,
+    request_number INT UNSIGNED NOT NULL,
+    delivery_id BIGINT UNSIGNED NULL,
     requester_id BIGINT UNSIGNED NOT NULL,
     title VARCHAR(220) NOT NULL,
     summary TEXT NOT NULL,
@@ -189,9 +235,13 @@ const ddl = [
     closed_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_change_project_number (project_id, request_number),
+    UNIQUE KEY uq_change_project_code (project_id, change_code),
     KEY idx_change_project_status (project_id, status),
+    KEY idx_change_delivery (delivery_id, status),
     KEY idx_change_requester (requester_id),
     CONSTRAINT fk_change_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    CONSTRAINT fk_change_delivery FOREIGN KEY (delivery_id) REFERENCES project_deliveries(id) ON DELETE SET NULL,
     CONSTRAINT fk_change_requester FOREIGN KEY (requester_id) REFERENCES users(id)
   ) ${tableOptions}`,
   `CREATE TABLE IF NOT EXISTS change_request_configuration_impacts (
@@ -450,6 +500,24 @@ async function backfillProjectConfigurationItems(db) {
   }
 }
 
+async function backfillDeveloperConfigurationImpacts(db) {
+  const placeholders = developerConfigurationCodes.map(() => "?").join(", ");
+  await db.execute(
+    `INSERT INTO change_request_configuration_impacts
+     (change_request_id, configuration_item_id, source_item_id, impact_type, reason, old_version)
+     SELECT DISTINCT cr.id, pci.id, NULL, 'DIRECT', ?, pci.current_version
+     FROM work_items wi
+     INNER JOIN change_requests cr ON cr.id = wi.change_request_id
+     INNER JOIN project_configuration_items pci ON pci.project_id = cr.project_id
+     WHERE wi.type = 'DEV'
+       AND cr.status <> 'CLOSED_APPROVED'
+       AND pci.active = 1
+       AND pci.element_code IN (${placeholders})
+     ON DUPLICATE KEY UPDATE reason = VALUES(reason)`,
+    ["Elemento SCM bajo responsabilidad del desarrollador.", ...developerConfigurationCodes]
+  );
+}
+
 async function ensureColumn(db, table, column, definition) {
   const [rows] = await db.execute(
     `SELECT COUNT(*) AS total
@@ -463,6 +531,168 @@ async function ensureColumn(db, table, column, definition) {
   if (Number(rows[0]?.total || 0) === 0) {
     await db.execute(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
   }
+}
+
+function changeCode(requestNumber) {
+  return `SC - ${String(requestNumber).padStart(2, "0")}`;
+}
+
+async function ensureUniqueIndex(db, table, indexName, columns) {
+  const [rows] = await db.execute(
+    `SELECT COUNT(*) AS total
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND INDEX_NAME = ?`,
+    [table, indexName]
+  );
+  if (Number(rows[0]?.total || 0) > 0) return;
+
+  const identifiers = [table, indexName, ...columns];
+  if (identifiers.some((identifier) => !/^[a-zA-Z0-9_]+$/.test(identifier))) {
+    throw new Error("Nombre de indice no valido.");
+  }
+  const columnList = columns.map((column) => `\`${column}\``).join(", ");
+  await db.execute(
+    `ALTER TABLE \`${table}\` ADD UNIQUE KEY \`${indexName}\` (${columnList})`
+  );
+}
+
+async function ensureIndex(db, table, indexName, columns) {
+  const [rows] = await db.execute(
+    `SELECT COUNT(*) AS total
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND INDEX_NAME = ?`,
+    [table, indexName]
+  );
+  if (Number(rows[0]?.total || 0) > 0) return;
+
+  const identifiers = [table, indexName, ...columns];
+  if (identifiers.some((identifier) => !/^[a-zA-Z0-9_]+$/.test(identifier))) {
+    throw new Error("Nombre de indice no valido.");
+  }
+  const columnList = columns.map((column) => `\`${column}\``).join(", ");
+  await db.execute(`ALTER TABLE \`${table}\` ADD KEY \`${indexName}\` (${columnList})`);
+}
+
+async function ensureChangeRequestDelivery(db) {
+  await ensureColumn(
+    db,
+    "change_requests",
+    "delivery_id",
+    "delivery_id BIGINT UNSIGNED NULL AFTER request_number"
+  );
+  await ensureIndex(db, "change_requests", "idx_change_delivery", ["delivery_id", "status"]);
+
+  const [constraints] = await db.execute(
+    `SELECT COUNT(*) AS total
+     FROM information_schema.TABLE_CONSTRAINTS
+     WHERE CONSTRAINT_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'change_requests'
+       AND CONSTRAINT_NAME = 'fk_change_delivery'`
+  );
+  if (Number(constraints[0]?.total || 0) === 0) {
+    await db.execute(
+      `ALTER TABLE change_requests
+       ADD CONSTRAINT fk_change_delivery
+       FOREIGN KEY (delivery_id) REFERENCES project_deliveries(id) ON DELETE SET NULL`
+    );
+  }
+}
+
+async function migrateProjectRequestNumbers(db) {
+  await ensureColumn(
+    db,
+    "change_requests",
+    "request_number",
+    "request_number INT UNSIGNED NULL AFTER project_id"
+  );
+
+  const [globalCodeIndexes] = await db.execute(
+    `SELECT INDEX_NAME
+     FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'change_requests'
+       AND NON_UNIQUE = 0
+       AND INDEX_NAME <> 'PRIMARY'
+     GROUP BY INDEX_NAME
+     HAVING GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) = 'change_code'`
+  );
+  for (const index of globalCodeIndexes) {
+    const safeIndexName = String(index.INDEX_NAME).replaceAll("`", "``");
+    await db.execute(`ALTER TABLE change_requests DROP INDEX \`${safeIndexName}\``);
+  }
+
+  const [requests] = await db.execute(
+    `SELECT id, project_id, request_number, change_code
+     FROM change_requests
+     ORDER BY project_id, created_at, id`
+  );
+  const maxByProject = new Map();
+  const usedByProject = new Map();
+
+  for (const request of requests) {
+    const projectId = Number(request.project_id);
+    const requestNumber = Number(request.request_number);
+    if (Number.isInteger(requestNumber) && requestNumber > 0) {
+      maxByProject.set(projectId, Math.max(maxByProject.get(projectId) || 0, requestNumber));
+    }
+  }
+
+  for (const request of requests) {
+    const projectId = Number(request.project_id);
+    const currentNumber = Number(request.request_number);
+    const usedNumbers = usedByProject.get(projectId) || new Set();
+    let requestNumber = currentNumber;
+
+    if (!Number.isInteger(requestNumber) || requestNumber <= 0 || usedNumbers.has(requestNumber)) {
+      requestNumber = (maxByProject.get(projectId) || 0) + 1;
+      maxByProject.set(projectId, requestNumber);
+    }
+
+    usedNumbers.add(requestNumber);
+    usedByProject.set(projectId, usedNumbers);
+
+    const code = changeCode(requestNumber);
+    if (currentNumber !== requestNumber || request.change_code !== code) {
+      await db.execute(
+        "UPDATE change_requests SET request_number = ?, change_code = ? WHERE id = ?",
+        [requestNumber, code, request.id]
+      );
+    }
+  }
+
+  await db.execute(
+    "ALTER TABLE change_requests MODIFY request_number INT UNSIGNED NOT NULL AFTER project_id"
+  );
+  await ensureUniqueIndex(
+    db,
+    "change_requests",
+    "uq_change_project_number",
+    ["project_id", "request_number"]
+  );
+  await ensureUniqueIndex(
+    db,
+    "change_requests",
+    "uq_change_project_code",
+    ["project_id", "change_code"]
+  );
+  await db.execute(
+    `UPDATE notifications n
+     INNER JOIN change_requests cr ON cr.id = n.change_request_id
+     SET n.title = CONCAT('Nueva solicitud ', cr.change_code)
+     WHERE n.title LIKE 'Nueva solicitud %'`
+  );
+  await db.execute(
+    `UPDATE notifications n
+     INNER JOIN change_requests cr ON cr.id = n.change_request_id
+     SET n.read_at = NOW()
+     WHERE n.read_at IS NULL
+       AND (n.title LIKE 'Nueva solicitud %' OR n.title = 'Solicitud reenviada')
+       AND cr.status <> 'PM_REVIEW'`
+  );
 }
 
 async function ensureCompatibleSchema(db) {
@@ -483,8 +713,11 @@ async function ensureCompatibleSchema(db) {
     "document_id",
     "document_id BIGINT UNSIGNED NULL AFTER deliverable_notes"
   );
+  await migrateProjectRequestNumbers(db);
+  await ensureChangeRequestDelivery(db);
   await seedConfigurationTemplates(db);
   await backfillProjectConfigurationItems(db);
+  await backfillDeveloperConfigurationImpacts(db);
 }
 
 async function main() {

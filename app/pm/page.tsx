@@ -80,12 +80,16 @@ export default async function ProjectManagerPage({
                     <button type="submit" name="decision" value="approve">
                       Aprobar para Lider Tecnico
                     </button>
-                    <button className="button-secondary" type="submit" name="decision" value="ccb">
-                      Escalar a CCB
-                    </button>
-                    <button className="button-danger" type="submit" name="decision" value="reject">
-                      Rechazar y negociar
-                    </button>
+                    {request.status === "PM_REVIEW" ? (
+                      <button className="button-secondary" type="submit" name="decision" value="ccb">
+                        Escalar a CCB
+                      </button>
+                    ) : null}
+                    {request.status === "PM_REVIEW" ? (
+                      <button className="button-danger" type="submit" name="decision" value="reject">
+                        Rechazar y negociar
+                      </button>
+                    ) : null}
                   </div>
                 </form>
               </article>

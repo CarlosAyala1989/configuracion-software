@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/AppShell";
 import { EmptyState, Panel, RequestLink, StatusBadge } from "@/components/ui";
-import { getActiveProject, requireUser } from "@/lib/auth";
+import { canUseRole, getActiveProject, requireUser } from "@/lib/auth";
 import {
   CONFIGURATION_IMPACT_STATUS_LABELS,
   CONFIGURATION_IMPACT_TYPE_LABELS,
@@ -10,10 +11,19 @@ import {
 } from "@/lib/configuration";
 import { query } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
+import type { ProjectRole } from "@/lib/types";
+
+const configurationRoles: ProjectRole[] = [
+  "JEFE_PROYECTO",
+  "CCB",
+  "LIDER_TECNICO",
+  "DESARROLLADOR",
+  "QA"
+];
 
 export default async function ConfigurationPage() {
   const user = await requireUser();
-  const { project } = await getActiveProject(user);
+  const { project, role } = await getActiveProject(user);
 
   if (!project) {
     return (
@@ -21,6 +31,10 @@ export default async function ConfigurationPage() {
         <EmptyState title="Sin proyecto activo">Selecciona o crea un proyecto para ver sus elementos SCM.</EmptyState>
       </AppShell>
     );
+  }
+
+  if (!user.is_admin && !canUseRole(user, role, configurationRoles)) {
+    redirect("/dashboard");
   }
 
   const [items, dependencies, impacts] = await Promise.all([

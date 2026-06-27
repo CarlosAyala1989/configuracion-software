@@ -40,6 +40,7 @@ async function main() {
   const runId = Date.now().toString(36);
   const userIds = {};
   const checks = [];
+  let nextRequestNumber = 1;
 
   await db.beginTransaction();
   try {
@@ -57,6 +58,14 @@ async function main() {
       [`VERIFY SGCS ${runId}`, "Proyecto temporal de verificacion funcional"]
     );
     const projectId = projectResult.insertId;
+    await db.execute(
+      `INSERT INTO project_configuration_items
+       (project_id, element_code, name, category, methodology)
+       VALUES
+       (?, 'SOURCE_CODE', 'Codigo fuente', 'Programas y codigo fuente', 'AGILE_SCRUM'),
+       (?, 'QA_EVIDENCE', 'Evidencias QA', 'Elementos de calidad y pruebas', 'AGILE_SCRUM')`,
+      [projectId, projectId]
+    );
 
     for (const role of roles) {
       await db.execute("INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)", [
@@ -66,6 +75,27 @@ async function main() {
       ]);
     }
     checks.push("roles_por_proyecto");
+
+    await db.execute(
+      `INSERT INTO project_delivery_plans (project_id, cadence, created_by)
+       VALUES (?, 'WEEK', ?)`,
+      [projectId, userIds.LIDER_TECNICO]
+    );
+    for (let index = 0; index < 5; index += 1) {
+      const startOffset = index * 7;
+      const endOffset = Math.min(startOffset + 6, 30);
+      await db.execute(
+        `INSERT INTO project_deliveries (project_id, sequence_number, start_date, end_date)
+         VALUES (?, ?, DATE_ADD(CURDATE(), INTERVAL ? DAY), DATE_ADD(CURDATE(), INTERVAL ? DAY))`,
+        [projectId, index + 1, startOffset, endOffset]
+      );
+    }
+    const [deliveryRows] = await db.execute(
+      "SELECT COUNT(*) AS total FROM project_deliveries WHERE project_id = ?",
+      [projectId]
+    );
+    assert(Number(deliveryRows[0].total) === 5, "El plan semanal no genero las entregas esperadas");
+    checks.push("plan_entregas_semanal");
 
     async function audit(changeId, actorRole, action, fromStatus, toStatus, comment) {
       await db.execute(
@@ -77,6 +107,10 @@ async function main() {
 
     async function setChange(changeId, actorRole, action, fromStatus, toStatus, comment) {
       await db.execute("UPDATE change_requests SET status = ? WHERE id = ?", [toStatus, changeId]);
+      await db.execute(
+        "UPDATE notifications SET read_at = NOW() WHERE change_request_id = ? AND read_at IS NULL",
+        [changeId]
+      );
       await audit(changeId, actorRole, action, fromStatus, toStatus, comment);
     }
 
@@ -88,16 +122,18 @@ async function main() {
     }
 
     async function createChange(suffix) {
-      const code = `VERIFY-${runId}-${suffix}`;
+      const requestNumber = nextRequestNumber++;
+      const code = `SC - ${String(requestNumber).padStart(2, "0")}`;
       const [result] = await db.execute(
         `INSERT INTO change_requests
-         (change_code, project_id, requester_id, title, summary, business_reason, affected_area,
+         (change_code, project_id, request_number, requester_id, title, summary, business_reason, affected_area,
           priority, risk_level, budget_impact, functional_scope, technical_context,
           acceptance_criteria, impact_analysis, rollback_plan, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'HIGH', 'MEDIUM', 1200.00, ?, ?, ?, ?, ?, 'PM_REVIEW')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'HIGH', 'MEDIUM', 1200.00, ?, ?, ?, ?, ?, 'PM_REVIEW')`,
         [
           code,
           projectId,
+          requestNumber,
           userIds.SOLICITANTE,
           `Cambio verificado ${suffix}`,
           "Resumen detallado de verificacion",
@@ -111,6 +147,11 @@ async function main() {
         ]
       );
       await audit(result.insertId, "SOLICITANTE", "SOLICITUD_CREADA", null, "PM_REVIEW", code);
+      await db.execute(
+        `INSERT INTO notifications (user_id, project_id, change_request_id, title, body)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userIds.JEFE_PROYECTO, projectId, result.insertId, `Nueva solicitud ${code}`, `Cambio verificado ${suffix}`]
+      );
       return result.insertId;
     }
 
@@ -132,6 +173,14 @@ async function main() {
                  'Criterios QA', 'Revisar evidencia', ?, 'HIGH', 5, 'BLOCKED', ?)`,
         [projectId, changeId, devId, userIds.QA, userIds.LIDER_TECNICO]
       );
+      await db.execute(
+        `INSERT INTO change_request_configuration_impacts
+         (change_request_id, configuration_item_id, impact_type, reason, old_version)
+         SELECT ?, id, 'DIRECT', 'Elemento SCM bajo responsabilidad del desarrollador.', current_version
+         FROM project_configuration_items
+         WHERE project_id = ? AND element_code = 'SOURCE_CODE'`,
+        [changeId, projectId]
+      );
       await setChange(
         changeId,
         "LIDER_TECNICO",
@@ -144,6 +193,14 @@ async function main() {
     }
 
     async function completeDev(changeId, devId, qaId, fromStatus = "DEV_IN_PROGRESS") {
+      await db.execute(
+        `UPDATE change_request_configuration_impacts cri
+         INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+         SET cri.status = 'NO_CHANGE', cri.deliverable_notes = 'Verificado por DEV',
+             cri.resolved_by = ?, cri.resolved_at = NOW()
+         WHERE cri.change_request_id = ? AND pci.element_code = 'SOURCE_CODE'`,
+        [userIds.DESARROLLADOR, changeId]
+      );
       await db.execute(
         `INSERT INTO work_item_updates
          (work_item_id, user_id, work_date, hours_spent, today_done, tomorrow_plan,
@@ -181,6 +238,11 @@ async function main() {
 
     const changeA = await createChange("A");
     await setChange(changeA, "JEFE_PROYECTO", "PM_RECHAZA", "PM_REVIEW", "REQUESTER_NEGOTIATION", "Observacion PM");
+    const [notificationRows] = await db.execute(
+      "SELECT COUNT(*) AS total FROM notifications WHERE change_request_id = ? AND read_at IS NULL",
+      [changeA]
+    );
+    assert(Number(notificationRows[0].total) === 0, "La notificacion anterior no se resolvio al cambiar de estado");
     let status = await statusOf(changeA);
     assert(status.status === "REQUESTER_NEGOTIATION", "PM reject no devolvio al solicitante");
     await db.execute(
@@ -199,7 +261,46 @@ async function main() {
     );
     await setChange(changeA, "CCB", "CCB_APRUEBA", "CCB_REVIEW", "CCB_APPROVED_TO_PM", "CCB aprueba");
     await setChange(changeA, "JEFE_PROYECTO", "PM_APRUEBA", "CCB_APPROVED_TO_PM", "TECH_LEAD_REQUIREMENTS", "PM aprueba");
+    await db.execute(
+      `UPDATE change_requests cr
+       INNER JOIN project_deliveries pd ON pd.project_id = cr.project_id AND pd.sequence_number = 1
+       SET cr.delivery_id = pd.id
+       WHERE cr.id = ?`,
+      [changeA]
+    );
+    await db.execute(
+      `UPDATE project_deliveries
+       SET start_date = DATE_SUB(CURDATE(), INTERVAL 2 DAY),
+           end_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+       WHERE project_id = ? AND sequence_number = 1`,
+      [projectId]
+    );
+    const [overdueRows] = await db.execute(
+      `SELECT COUNT(*) AS total
+       FROM change_requests cr
+       INNER JOIN project_deliveries pd ON pd.id = cr.delivery_id
+       WHERE cr.id = ? AND cr.status <> 'CLOSED_APPROVED' AND pd.end_date < CURDATE()`,
+      [changeA]
+    );
+    assert(Number(overdueRows[0].total) === 1, "La solicitud vencida no aparece en tardanza");
+    checks.push("solicitud_asignada_y_detectada_en_tardanza");
     const cardsA = await createDevAndQa(changeA);
+    const [developerImpactRows] = await db.execute(
+      `SELECT COUNT(*) AS total,
+              SUM(pci.element_code = 'SOURCE_CODE') AS developer_total,
+              SUM(pci.element_code = 'QA_EVIDENCE') AS qa_total
+       FROM change_request_configuration_impacts cri
+       INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+       WHERE cri.change_request_id = ?`,
+      [changeA]
+    );
+    assert(
+      Number(developerImpactRows[0].total) === 1 &&
+        Number(developerImpactRows[0].developer_total) === 1 &&
+        Number(developerImpactRows[0].qa_total) === 0,
+      "La asignacion SCM incluyo elementos fuera de responsabilidad DEV"
+    );
+    checks.push("elementos_scm_filtrados_para_desarrollador");
     await completeDev(changeA, cardsA.devId, cardsA.qaId);
     await db.execute(
       `INSERT INTO qa_reviews (qa_work_item_id, dev_work_item_id, reviewer_id, verdict, comments, version)

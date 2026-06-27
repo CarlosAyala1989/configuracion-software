@@ -16,7 +16,7 @@ export default async function AdminRolesPage({
   const baseRoleOptions = PROJECT_ROLES.map((role) => ({ label: ROLE_LABELS[role], value: role }));
 
   return (
-    <AppShell>
+    <AppShell showProjectHeader={false}>
       {params.ok ? <div className="ok-banner">Rol creado correctamente.</div> : null}
       {params.error ? <div className="error-banner">Revisa el nombre, codigo o rol heredado.</div> : null}
 

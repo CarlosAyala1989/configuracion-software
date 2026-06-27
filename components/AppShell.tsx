@@ -31,22 +31,31 @@ type NavItem = {
   label: string;
   icon: ReactNode;
   roles?: ProjectRole[];
+  adminAllowed?: boolean;
   adminOnly?: boolean;
 };
 
+const configurationRoles: ProjectRole[] = [
+  "JEFE_PROYECTO",
+  "CCB",
+  "LIDER_TECNICO",
+  "DESARROLLADOR",
+  "QA"
+];
+
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-  { href: "/configuration", label: "Elementos SCM", icon: <Network size={18} /> },
-  { href: "/requests#crear-solicitud", label: "Crear solicitud", icon: <BadgePlus size={18} />, roles: ["SOLICITANTE"] },
-  { href: "/requests#mis-solicitudes", label: "Mis solicitudes", icon: <ListChecks size={18} />, roles: ["SOLICITANTE"] },
+  { href: "/configuration", label: "Elementos SCM", icon: <Network size={18} />, roles: configurationRoles, adminAllowed: true },
+  { href: "/requests", label: "Crear solicitud", icon: <BadgePlus size={18} />, roles: ["SOLICITANTE"] },
+  { href: "/requests/mine", label: "Mis solicitudes", icon: <ListChecks size={18} />, roles: ["SOLICITANTE"] },
   { href: "/pm#revision-solicitudes", label: "Revision PM", icon: <FolderKanban size={18} />, roles: ["JEFE_PROYECTO"] },
   { href: "/pm#cierres-pendientes", label: "Cierres PM", icon: <UserCheck size={18} />, roles: ["JEFE_PROYECTO"] },
   { href: "/ccb#revision-ccb", label: "Revision CCB", icon: <ShieldCheck size={18} />, roles: ["CCB"] },
-  { href: "/tech-lead#crear-backlog", label: "Crear backlog", icon: <SlidersHorizontal size={18} />, roles: ["LIDER_TECNICO"] },
-  { href: "/tech-lead#liberar-pm", label: "Liberar a PM", icon: <UserCheck size={18} />, roles: ["LIDER_TECNICO"] },
-  { href: "/tech-lead#backlogs", label: "Backlogs DEV/QA", icon: <GitBranch size={18} />, roles: ["LIDER_TECNICO"] },
-  { href: "/developer#backlog-dev", label: "Backlog DEV", icon: <GitBranch size={18} />, roles: ["DESARROLLADOR"] },
-  { href: "/developer#mis-reportes", label: "Mis reportes", icon: <History size={18} />, roles: ["DESARROLLADOR"] },
+  { href: "/tech-lead/backlog", label: "Crear backlog", icon: <SlidersHorizontal size={18} />, roles: ["LIDER_TECNICO"] },
+  { href: "/tech-lead/release", label: "Liberar a PM", icon: <UserCheck size={18} />, roles: ["LIDER_TECNICO"] },
+  { href: "/tech-lead/work-items", label: "Backlogs DEV/QA", icon: <GitBranch size={18} />, roles: ["LIDER_TECNICO"] },
+  { href: "/developer", label: "Backlog DEV", icon: <GitBranch size={18} />, roles: ["DESARROLLADOR"] },
+  { href: "/developer/reports", label: "Mis reportes", icon: <History size={18} />, roles: ["DESARROLLADOR"] },
   { href: "/qa#backlog-qa", label: "Backlog QA", icon: <ClipboardCheck size={18} />, roles: ["QA"] },
   { href: "/qa#historial-qa", label: "Historial QA", icon: <History size={18} />, roles: ["QA"] },
   { href: "/admin/users", label: "Crear usuarios", icon: <UserPlus size={18} />, adminOnly: true },
@@ -58,18 +67,21 @@ const navItems: NavItem[] = [
 
 export async function AppShell({
   children,
-  showProjectSwitcher = false
+  showProjectSwitcher = false,
+  showProjectHeader = true
 }: {
   children: ReactNode;
   showProjectSwitcher?: boolean;
+  showProjectHeader?: boolean;
 }) {
   const user = await requireUser();
   const { project, projects, role } = await getActiveProject(user);
-  const notifications = await getUnreadNotifications(user.id);
+  const notifications = project ? await getUnreadNotifications(user.id, project.id) : [];
 
   const visibleNav = navItems.filter((item) => {
     if (item.adminOnly) return user.is_admin;
     if (!item.roles) return true;
+    if (item.adminAllowed && user.is_admin) return true;
     return canUseRole(user, role, item.roles);
   });
 
@@ -111,35 +123,37 @@ export async function AppShell({
       </aside>
 
       <main className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Sistema de Gestion de la Configuracion de Software</p>
-            <h1>{project?.title || "Sin proyecto activo"}</h1>
-            {project ? (
-              <p className="muted">
-                {project.methodology} · {formatDate(project.start_date)} - {formatDate(project.end_date)}
-                {role ? ` · Rol: ${roleLabel(role, project.role_labels)}` : ""}
-              </p>
-            ) : (
-              <p className="muted">Crea o asigna un proyecto para iniciar el flujo.</p>
-            )}
-          </div>
+        {showProjectHeader ? (
+          <header className="topbar">
+            <div>
+              <p className="eyebrow">Sistema de Gestion de la Configuracion de Software</p>
+              <h1>{project?.title || "Sin proyecto activo"}</h1>
+              {project ? (
+                <p className="muted">
+                  {project.methodology} · {formatDate(project.start_date)} - {formatDate(project.end_date)}
+                  {role ? ` · Rol: ${roleLabel(role, project.role_labels)}` : ""}
+                </p>
+              ) : (
+                <p className="muted">Crea o asigna un proyecto para iniciar el flujo.</p>
+              )}
+            </div>
 
-          <div className="topbar-actions">
-            {showProjectSwitcher && projects.length > 0 ? (
-              <form action={setActiveProjectAction} className="project-switcher">
-                <select name="projectId" defaultValue={project?.id}>
-                  {projects.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
-                    </option>
-                  ))}
-                </select>
-                <button type="submit">Abrir</button>
-              </form>
-            ) : null}
-          </div>
-        </header>
+            <div className="topbar-actions">
+              {showProjectSwitcher && projects.length > 0 ? (
+                <form action={setActiveProjectAction} className="project-switcher">
+                  <select name="projectId" defaultValue={project?.id}>
+                    {projects.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.title}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit">Abrir</button>
+                </form>
+              ) : null}
+            </div>
+          </header>
+        ) : null}
 
         {notifications.length > 0 ? (
           <section className="notification-strip" aria-label="Notificaciones pendientes">

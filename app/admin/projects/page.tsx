@@ -15,11 +15,16 @@ export default async function AdminProjectsPage({
     query<AdminProjectRow>(
       `SELECT p.id, p.title, p.description, p.methodology, p.start_date, p.end_date, p.status,
               COUNT(DISTINCT cr.id) AS request_count,
+              pdp.cadence AS delivery_cadence,
+              COUNT(DISTINCT pd.id) AS delivery_count,
               GROUP_CONCAT(DISTINCT pci.element_code ORDER BY pci.element_code SEPARATOR ',') AS item_codes
        FROM projects p
        LEFT JOIN change_requests cr ON cr.project_id = p.id
+       LEFT JOIN project_delivery_plans pdp ON pdp.project_id = p.id
+       LEFT JOIN project_deliveries pd ON pd.project_id = p.id
        LEFT JOIN project_configuration_items pci ON pci.project_id = p.id AND pci.active = 1
-       GROUP BY p.id, p.title, p.description, p.methodology, p.start_date, p.end_date, p.status
+       GROUP BY p.id, p.title, p.description, p.methodology, p.start_date, p.end_date, p.status,
+                pdp.cadence
        ORDER BY p.created_at DESC`
     ),
     query<ConfigurationTemplateRow>(
@@ -34,7 +39,7 @@ export default async function AdminProjectsPage({
   ]);
 
   return (
-    <AppShell>
+    <AppShell showProjectHeader={false}>
       {params.ok ? <div className="ok-banner">Proyecto actualizado.</div> : null}
       {params.error ? (
         <div className="error-banner">

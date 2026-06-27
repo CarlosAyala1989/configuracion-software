@@ -11,6 +11,12 @@ import {
   normalizeMethodology,
   type MethodologyCode
 } from "@/lib/configuration";
+import {
+  buildDeliveryPeriods,
+  deliveryCadenceLabel,
+  parseDeliveryCadence,
+  type DeliveryCadence
+} from "@/lib/deliveries";
 import { formatDate } from "@/lib/format";
 
 export type AdminProjectRow = {
@@ -22,6 +28,8 @@ export type AdminProjectRow = {
   end_date: string;
   status: string;
   request_count: number;
+  delivery_cadence: string | null;
+  delivery_count: number;
   item_codes: string | null;
 };
 
@@ -57,6 +65,11 @@ function ProjectDialog({
   const [selectedCodes, setSelectedCodes] = useState<string[]>(initialCodes);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [saveTemplate, setSaveTemplate] = useState(false);
+  const [startDate, setStartDate] = useState(project?.start_date || "");
+  const [endDate, setEndDate] = useState(project?.end_date || "");
+  const initialDeliveryCadence = parseDeliveryCadence(project?.delivery_cadence) || "WEEK";
+  const [createDeliveryPlan, setCreateDeliveryPlan] = useState(Boolean(project?.delivery_cadence));
+  const [deliveryCadence, setDeliveryCadence] = useState<DeliveryCadence>(initialDeliveryCadence);
 
   const visibleItems = useMemo(() => getConfigurationItemsForMethodology(methodology), [methodology]);
   const groupedItems = useMemo(() => {
@@ -66,6 +79,10 @@ function ProjectDialog({
       return groups;
     }, {});
   }, [visibleItems]);
+  const deliveryCount = useMemo(
+    () => buildDeliveryPeriods(startDate, endDate, deliveryCadence).length,
+    [startDate, endDate, deliveryCadence]
+  );
 
   function changeMethodology(nextMethodology: MethodologyCode) {
     setMethodology(nextMethodology);
@@ -139,12 +156,53 @@ function ProjectDialog({
               </label>
               <label className="field">
                 <span>Dia de inicio</span>
-                <input name="start_date" type="date" required defaultValue={project?.start_date} />
+                <input
+                  name="start_date"
+                  type="date"
+                  required
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                />
               </label>
               <label className="field">
                 <span>Dia de fin</span>
-                <input name="end_date" type="date" required defaultValue={project?.end_date} />
+                <input
+                  name="end_date"
+                  type="date"
+                  required
+                  min={startDate || undefined}
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                />
               </label>
+              <label className="field field-wide checkbox-field">
+                <input
+                  name="create_delivery_plan"
+                  type="checkbox"
+                  checked={createDeliveryPlan}
+                  onChange={(event) => setCreateDeliveryPlan(event.target.checked)}
+                />
+                <span>Definir entregas ahora (opcional)</span>
+              </label>
+              {createDeliveryPlan ? (
+                <>
+                  <label className="field">
+                    <span>Separar entregas por</span>
+                    <select
+                      name="delivery_cadence"
+                      value={deliveryCadence}
+                      onChange={(event) => setDeliveryCadence(event.target.value as DeliveryCadence)}
+                    >
+                      <option value="WEEK">Semanas</option>
+                      <option value="DAY">Dias</option>
+                    </select>
+                  </label>
+                  <div className="field">
+                    <span>Entregas previstas</span>
+                    <strong>{deliveryCount}</strong>
+                  </div>
+                </>
+              ) : null}
               <label className="field field-wide">
                 <span>Descripcion</span>
                 <textarea name="description" rows={3} defaultValue={project?.description ?? undefined} />
@@ -274,6 +332,7 @@ export function ProjectManager({
               <th>Inicio</th>
               <th>Fin</th>
               <th>Estado</th>
+              <th>Entregas</th>
               <th>ECS</th>
               <th>Solicitudes</th>
               <th>Acciones</th>
@@ -289,6 +348,13 @@ export function ProjectManager({
                   <td>{formatDate(project.start_date)}</td>
                   <td>{formatDate(project.end_date)}</td>
                   <td>{project.status}</td>
+                  <td>
+                    {Number(project.delivery_count || 0) > 0 ? (
+                      `${project.delivery_count} / ${deliveryCadenceLabel(project.delivery_cadence)}`
+                    ) : (
+                      <span className="badge badge-warning">Pendiente</span>
+                    )}
+                  </td>
                   <td>{codesFromCsv(project.item_codes).length}</td>
                   <td>{project.request_count}</td>
                   <td>
