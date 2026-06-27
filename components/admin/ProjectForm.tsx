@@ -1,8 +1,13 @@
 "use client";
 
+import { GitBranch } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { createProjectAction, updateProjectAction } from "@/app/actions/admin";
+import {
+  createProjectAction,
+  updateProjectAction,
+  updateProjectGithubAction
+} from "@/app/actions/admin";
 import {
   METHODOLOGY_OPTIONS,
   getConfigurationItemsForMethodology,
@@ -31,6 +36,9 @@ export type AdminProjectRow = {
   delivery_cadence: string | null;
   delivery_count: number;
   item_codes: string | null;
+  github_repository: string | null;
+  github_development_branch: string | null;
+  github_configured: number;
 };
 
 export type ConfigurationTemplateRow = {
@@ -70,6 +78,7 @@ function ProjectDialog({
   const initialDeliveryCadence = parseDeliveryCadence(project?.delivery_cadence) || "WEEK";
   const [createDeliveryPlan, setCreateDeliveryPlan] = useState(Boolean(project?.delivery_cadence));
   const [deliveryCadence, setDeliveryCadence] = useState<DeliveryCadence>(initialDeliveryCadence);
+  const [githubEnabled, setGithubEnabled] = useState(false);
 
   const visibleItems = useMemo(() => getConfigurationItemsForMethodology(methodology), [methodology]);
   const groupedItems = useMemo(() => {
@@ -208,6 +217,45 @@ function ProjectDialog({
                 <textarea name="description" rows={3} defaultValue={project?.description ?? undefined} />
               </label>
 
+              {mode === "create" ? (
+                <>
+                  <label className="field field-wide checkbox-field">
+                    <input
+                      name="github_enabled"
+                      type="checkbox"
+                      checked={githubEnabled}
+                      onChange={(event) => setGithubEnabled(event.target.checked)}
+                    />
+                    <span>Integrar proyecto con GitHub</span>
+                  </label>
+                  {githubEnabled ? (
+                    <>
+                      <label className="field">
+                        <span>Repositorio GitHub</span>
+                        <input
+                          name="github_repository"
+                          required
+                          placeholder="organizacion/repositorio"
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Rama de desarrollo</span>
+                        <input name="github_development_branch" required defaultValue="develop" />
+                      </label>
+                      <label className="field field-wide">
+                        <span>API Key / token GitHub</span>
+                        <input
+                          name="github_token"
+                          type="password"
+                          required
+                          autoComplete="new-password"
+                        />
+                      </label>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+
               <div className="field field-wide">
                 <span>Plantilla ECS</span>
                 <select value={selectedTemplateId} onChange={(event) => applyTemplate(event.target.value)}>
@@ -310,6 +358,77 @@ function ProjectDialog({
   );
 }
 
+function GithubProjectDialog({ project }: { project: AdminProjectRow }) {
+  const [open, setOpen] = useState(false);
+  const [enabled, setEnabled] = useState(Boolean(project.github_configured));
+
+  return (
+    <>
+      <button type="button" className="button-secondary" onClick={() => setOpen(true)}>
+        <GitBranch size={16} />
+        GitHub
+      </button>
+      {open ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`GitHub de ${project.title}`}>
+          <div className="modal">
+            <div className="modal-header">
+              <h2>GitHub · {project.title}</h2>
+              <button type="button" className="button-secondary" onClick={() => setOpen(false)}>
+                Cerrar
+              </button>
+            </div>
+            <form action={updateProjectGithubAction} className="form-grid">
+              <input type="hidden" name="project_id" value={project.id} />
+              <label className="field field-wide checkbox-field">
+                <input
+                  name="github_enabled"
+                  type="checkbox"
+                  checked={enabled}
+                  onChange={(event) => setEnabled(event.target.checked)}
+                />
+                <span>Integracion GitHub activa</span>
+              </label>
+              {enabled ? (
+                <>
+                  <label className="field">
+                    <span>Repositorio GitHub</span>
+                    <input
+                      name="github_repository"
+                      required
+                      defaultValue={project.github_repository || ""}
+                      placeholder="organizacion/repositorio"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Rama de desarrollo</span>
+                    <input
+                      name="github_development_branch"
+                      required
+                      defaultValue={project.github_development_branch || "develop"}
+                    />
+                  </label>
+                  <label className="field field-wide">
+                    <span>{project.github_configured ? "Nueva API Key / token (opcional)" : "API Key / token GitHub"}</span>
+                    <input
+                      name="github_token"
+                      type="password"
+                      required={!project.github_configured}
+                      autoComplete="new-password"
+                    />
+                  </label>
+                </>
+              ) : null}
+              <div className="button-row field-wide">
+                <button type="submit">Guardar integracion</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function ProjectManager({
   projects,
   templates
@@ -335,6 +454,7 @@ export function ProjectManager({
               <th>Entregas</th>
               <th>ECS</th>
               <th>Solicitudes</th>
+              <th>GitHub</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -358,11 +478,25 @@ export function ProjectManager({
                   <td>{codesFromCsv(project.item_codes).length}</td>
                   <td>{project.request_count}</td>
                   <td>
-                    {locked ? (
-                      <span className="badge badge-neutral">Bloqueado</span>
+                    {project.github_configured ? (
+                      <>
+                        <strong>{project.github_repository}</strong>
+                        <br />
+                        <span className="muted">{project.github_development_branch}</span>
+                      </>
                     ) : (
-                      <ProjectDialog mode="edit" project={project} templates={templates} />
+                      <span className="badge badge-neutral">Sin integrar</span>
                     )}
+                  </td>
+                  <td>
+                    <div className="button-row compact-row">
+                      {locked ? (
+                        <span className="badge badge-neutral">Bloqueado</span>
+                      ) : (
+                        <ProjectDialog mode="edit" project={project} templates={templates} />
+                      )}
+                      <GithubProjectDialog project={project} />
+                    </div>
                   </td>
                 </tr>
               );

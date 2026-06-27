@@ -17,6 +17,14 @@ import { execute, query, transaction } from "@/lib/db";
 import { buildDeliveryPeriods, parseDeliveryCadence } from "@/lib/deliveries";
 import { replaceProjectDeliveryPlan } from "@/lib/deliveries-server";
 import { nullableText, numberValue, textValue } from "@/lib/forms";
+import {
+  decryptGithubToken,
+  encryptGithubToken,
+  githubErrorParam,
+  normalizeGithubBranch,
+  normalizeGithubRepository,
+  verifyGithubIntegration
+} from "@/lib/github";
 import { getRoleByCode, isBaseProjectRole, normalizeRoleCode } from "@/lib/roles";
 
 type TeamMemberInput = {
@@ -87,6 +95,11 @@ export async function createProjectAction(formData: FormData) {
   const configurationCodes = configurationCodesFromForm(formData);
   const createDeliveryPlan = formData.get("create_delivery_plan") === "on";
   const deliveryCadence = parseDeliveryCadence(textValue(formData, "delivery_cadence"));
+  const githubEnabled = formData.get("github_enabled") === "on";
+  const githubToken = textValue(formData, "github_token");
+  let githubRepository: string | null = null;
+  let githubDevelopmentBranch: string | null = null;
+  let githubTokenEncrypted: string | null = null;
 
   if (
     !title ||
@@ -97,11 +110,40 @@ export async function createProjectAction(formData: FormData) {
     redirect("/admin/projects?error=project");
   }
 
+  if (githubEnabled) {
+    try {
+      githubRepository = normalizeGithubRepository(textValue(formData, "github_repository"));
+      githubDevelopmentBranch = normalizeGithubBranch(
+        textValue(formData, "github_development_branch", "develop")
+      );
+      if (!githubToken) throw new Error("Falta token GitHub");
+      await verifyGithubIntegration({
+        repository: githubRepository,
+        developmentBranch: githubDevelopmentBranch,
+        token: githubToken
+      });
+      githubTokenEncrypted = encryptGithubToken(githubToken);
+    } catch (error) {
+      redirect(`/admin/projects?error=${githubErrorParam(error)}`);
+    }
+  }
+
   await transaction(async (connection) => {
     const [projectInsert] = await connection.execute<ResultSetHeader>(
-      `INSERT INTO projects (title, description, methodology, start_date, end_date)
-       VALUES (?, ?, ?, ?, ?)`,
-      [title, description, methodology, startDate, endDate]
+      `INSERT INTO projects
+       (title, description, methodology, start_date, end_date,
+        github_repository, github_development_branch, github_token_encrypted)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        title,
+        description,
+        methodology,
+        startDate,
+        endDate,
+        githubRepository,
+        githubDevelopmentBranch,
+        githubTokenEncrypted
+      ]
     );
 
     await insertProjectConfigurationItems(connection, projectInsert.insertId, methodology, configurationCodes);
@@ -199,6 +241,66 @@ export async function updateProjectAction(formData: FormData) {
   revalidatePath("/tech-lead/release");
   revalidatePath("/tech-lead/work-items");
   redirect("/admin/projects?ok=project-updated");
+}
+
+export async function updateProjectGithubAction(formData: FormData) {
+  await requireAdmin();
+  const projectId = numberValue(formData, "project_id");
+  const enabled = formData.get("github_enabled") === "on";
+  if (!projectId) redirect("/admin/projects?error=project");
+
+  if (!enabled) {
+    await execute(
+      `UPDATE projects
+       SET github_repository = NULL,
+           github_development_branch = NULL,
+           github_token_encrypted = NULL
+       WHERE id = ?`,
+      [projectId]
+    );
+    revalidatePath("/admin/projects");
+    revalidatePath("/developer");
+    revalidatePath("/qa");
+    redirect("/admin/projects?ok=github-disabled");
+  }
+
+  const rows = await query<{ github_token_encrypted: string | null }>(
+    "SELECT github_token_encrypted FROM projects WHERE id = ? LIMIT 1",
+    [projectId]
+  );
+  if (!rows[0]) redirect("/admin/projects?error=project");
+
+  try {
+    const repository = normalizeGithubRepository(textValue(formData, "github_repository"));
+    const developmentBranch = normalizeGithubBranch(
+      textValue(formData, "github_development_branch", "develop")
+    );
+    const newToken = textValue(formData, "github_token");
+    const token = newToken
+      ? newToken
+      : rows[0].github_token_encrypted
+        ? decryptGithubToken(rows[0].github_token_encrypted)
+        : "";
+    if (!token) throw new Error("Falta token GitHub");
+
+    await verifyGithubIntegration({ repository, developmentBranch, token });
+    const encryptedToken = newToken
+      ? encryptGithubToken(newToken)
+      : rows[0].github_token_encrypted;
+    await execute(
+      `UPDATE projects
+       SET github_repository = ?, github_development_branch = ?, github_token_encrypted = ?
+       WHERE id = ?`,
+      [repository, developmentBranch, encryptedToken, projectId]
+    );
+  } catch (error) {
+    redirect(`/admin/projects?error=${githubErrorParam(error)}`);
+  }
+
+  revalidatePath("/admin/projects");
+  revalidatePath("/developer");
+  revalidatePath("/qa");
+  redirect("/admin/projects?ok=github-updated");
 }
 
 export async function assignMemberAction(formData: FormData) {

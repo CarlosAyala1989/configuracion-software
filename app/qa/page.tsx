@@ -19,7 +19,7 @@ export default async function QaPage({
   const params = await searchParams;
 
   const qaPlaceholders = QA_CONFIGURATION_CODES.map(() => "?").join(", ");
-  const [items, documents, impacts] = await Promise.all([
+  const [items, documents, impacts, githubRows] = await Promise.all([
     query<QaWorkItem>(
       `SELECT qa.*, u.name AS assignee_name, cr.change_code, cr.title AS request_title,
               dev.title AS dev_title, dev.status AS dev_status, dev.github_branch AS dev_branch,
@@ -57,9 +57,28 @@ export default async function QaPage({
          AND pci.element_code IN (${qaPlaceholders})
        ORDER BY pci.category, pci.name`,
       [project.id, ...QA_CONFIGURATION_CODES]
+    ),
+    query<{
+      github_repository: string | null;
+      github_development_branch: string | null;
+      github_configured: number;
+    }>(
+      `SELECT github_repository, github_development_branch,
+              (github_token_encrypted IS NOT NULL) AS github_configured
+       FROM projects
+       WHERE id = ?`,
+      [project.id]
     )
   ]);
   const openItemId = Number(params.item || 0);
+  const githubIntegration = githubRows[0]?.github_configured &&
+    githubRows[0].github_repository &&
+    githubRows[0].github_development_branch
+    ? {
+        repository: githubRows[0].github_repository,
+        developmentBranch: githubRows[0].github_development_branch
+      }
+    : null;
 
   return (
     <AppShell>
@@ -70,6 +89,20 @@ export default async function QaPage({
             ? "La revision QA necesita comentarios y evidencia adjunta."
             : params.error === "config-items"
             ? "Completa todos los elementos SCM de QA antes de aprobar."
+            : params.error === "github-branch-required"
+            ? "La tarjeta DEV no tiene una rama GitHub registrada."
+            : params.error === "merge-conflict"
+            ? "GitHub detecto conflictos. Resuelve la rama antes de aprobar QA."
+            : params.error === "invalid-token" || params.error === "insufficient-permissions"
+            ? "La credencial GitHub del proyecto no permite realizar el merge."
+            : params.error === "repository-or-branch-not-found"
+            ? "GitHub no encontro el repositorio o una de las ramas."
+            : params.error === "invalid-branch" || params.error === "same-branch"
+            ? "La rama DEV no es valida para fusionarse."
+            : params.error === "github-validation"
+            ? "GitHub rechazo el merge solicitado."
+            : params.error === "github-unavailable" || params.error === "github-configuration"
+            ? "No se pudo usar la integracion GitHub del proyecto."
             : "La revision necesita comentarios."}
         </div>
       ) : null}
@@ -83,6 +116,7 @@ export default async function QaPage({
                 item={item}
                 documents={documents.filter((document) => document.work_item_id === item.parent_work_item_id)}
                 impacts={impacts.filter((impact) => impact.change_request_id === item.change_request_id)}
+                githubIntegration={githubIntegration}
                 defaultOpen={openItemId === item.id}
               />
             ))}

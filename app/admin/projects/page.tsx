@@ -14,6 +14,8 @@ export default async function AdminProjectsPage({
   const [projects, templates] = await Promise.all([
     query<AdminProjectRow>(
       `SELECT p.id, p.title, p.description, p.methodology, p.start_date, p.end_date, p.status,
+              p.github_repository, p.github_development_branch,
+              (p.github_token_encrypted IS NOT NULL) AS github_configured,
               COUNT(DISTINCT cr.id) AS request_count,
               pdp.cadence AS delivery_cadence,
               COUNT(DISTINCT pd.id) AS delivery_count,
@@ -24,6 +26,7 @@ export default async function AdminProjectsPage({
        LEFT JOIN project_deliveries pd ON pd.project_id = p.id
        LEFT JOIN project_configuration_items pci ON pci.project_id = p.id AND pci.active = 1
        GROUP BY p.id, p.title, p.description, p.methodology, p.start_date, p.end_date, p.status,
+                p.github_repository, p.github_development_branch, p.github_token_encrypted,
                 pdp.cadence
        ORDER BY p.created_at DESC`
     ),
@@ -37,15 +40,34 @@ export default async function AdminProjectsPage({
        ORDER BY ct.methodology, ct.name`
     )
   ]);
+  const errorMessages: Record<string, string> = {
+    "invalid-repository": "El repositorio GitHub debe usar el formato organizacion/repositorio.",
+    "invalid-branch": "El nombre de la rama de desarrollo no es valido.",
+    "invalid-token": "El token GitHub fue rechazado.",
+    "insufficient-permissions": "El token GitHub necesita permiso Contents: write sobre el repositorio.",
+    "repository-or-branch-not-found": "No se encontro el repositorio o la rama de desarrollo con ese token.",
+    "github-validation": "GitHub rechazo la configuracion ingresada.",
+    "github-unavailable": "GitHub no esta disponible. Intenta nuevamente.",
+    "github-configuration": "No se pudo proteger o leer la credencial GitHub del proyecto."
+  };
 
   return (
     <AppShell showProjectHeader={false}>
-      {params.ok ? <div className="ok-banner">Proyecto actualizado.</div> : null}
+      {params.ok ? (
+        <div className="ok-banner">
+          {params.ok === "github-disabled"
+            ? "Integracion GitHub desactivada."
+            : params.ok === "github-updated"
+              ? "Integracion GitHub verificada y guardada."
+              : "Proyecto actualizado."}
+        </div>
+      ) : null}
       {params.error ? (
         <div className="error-banner">
-          {params.error === "locked"
-            ? "El proyecto ya tiene solicitudes y no puede modificarse."
-            : "Revisa los campos del proyecto y selecciona al menos un ECS."}
+          {errorMessages[params.error] ||
+            (params.error === "locked"
+              ? "El proyecto ya tiene solicitudes y no puede modificarse."
+              : "Revisa los campos del proyecto y selecciona al menos un ECS.")}
         </div>
       ) : null}
 

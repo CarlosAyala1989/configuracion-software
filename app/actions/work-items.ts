@@ -14,6 +14,13 @@ import { query, transaction } from "@/lib/db";
 import { saveUploadedDocument } from "@/lib/documents";
 import { clampPercent, fileValue, nullableNumber, nullableText, numberValue, textValue } from "@/lib/forms";
 import {
+  createGithubBranch,
+  getProjectGithubIntegration,
+  githubErrorParam,
+  mergeGithubBranch,
+  type ProjectGithubIntegration
+} from "@/lib/github";
+import {
   getProjectUsersByRole,
   markChangeRequestNotificationsRead,
   notifyUsers
@@ -30,6 +37,7 @@ async function getWorkItem(id: number) {
     title: string;
     assigned_to: number | null;
     version: number;
+    github_branch: string | null;
   }>("SELECT * FROM work_items WHERE id = ? LIMIT 1", [id]);
   return rows[0];
 }
@@ -161,7 +169,8 @@ export async function developerProgressAction(formData: FormData) {
   const progress = clampPercent(numberValue(formData, "progress_percent"));
   const remaining = 100 - progress;
   const markComplete = formData.get("mark_complete") === "on";
-  const githubBranch = nullableText(formData, "github_branch");
+  const enteredGithubBranch = nullableText(formData, "github_branch");
+  let githubBranch = enteredGithubBranch;
   const workDate = textValue(formData, "work_date");
   const hoursSpent = numberValue(formData, "hours_spent");
   const todayDone = textValue(formData, "today_done");
@@ -207,7 +216,7 @@ export async function developerProgressAction(formData: FormData) {
   if (!workDate || hoursSpent <= 0 || !todayDone || !tomorrowPlan) {
     redirect(`/developer?error=required&item=${workItemId}`);
   }
-  if (markComplete && (!githubBranch || !documentation)) {
+  if (markComplete && !documentation) {
     redirect(`/developer?error=complete-doc&item=${workItemId}`);
   }
   if (
@@ -222,6 +231,33 @@ export async function developerProgressAction(formData: FormData) {
       ))
   ) {
     redirect(`/developer?error=config-items&item=${workItemId}`);
+  }
+
+  let githubIntegration: ProjectGithubIntegration | null = null;
+  try {
+    githubIntegration = await getProjectGithubIntegration(project.id);
+  } catch {
+    redirect(`/developer?error=github-configuration&item=${workItemId}`);
+  }
+  if (githubIntegration) githubBranch = item.github_branch || enteredGithubBranch;
+  let createdGithubBranch: { repository: string; branch: string; sha: string } | null = null;
+  if (githubIntegration && !item.github_branch) {
+    if (!enteredGithubBranch) {
+      redirect(`/developer?error=github-branch-required&item=${workItemId}`);
+    }
+    try {
+      const created = await createGithubBranch({
+        ...githubIntegration,
+        branch: enteredGithubBranch
+      });
+      githubBranch = created.branch;
+      createdGithubBranch = created;
+    } catch (error) {
+      redirect(`/developer?error=${githubErrorParam(error)}&item=${workItemId}`);
+    }
+  }
+  if (markComplete && !githubBranch) {
+    redirect(`/developer?error=complete-doc&item=${workItemId}`);
   }
 
   await transaction(async (connection) => {
@@ -253,6 +289,20 @@ export async function developerProgressAction(formData: FormData) {
       docType: "DEV_DOCUMENTATION",
       connection
     });
+
+    if (createdGithubBranch) {
+      await connection.execute(
+        `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
+         VALUES (?, ?, 'DEV_CREA_RAMA_GITHUB', ?, ?, ?)`,
+        [
+          item.change_request_id,
+          user.id,
+          item.status,
+          item.status,
+          `${createdGithubBranch.repository}: ${createdGithubBranch.branch} (${createdGithubBranch.sha.slice(0, 7)})`
+        ]
+      );
+    }
 
     if (markComplete) {
       for (const impact of pendingImpactResolutions) {
@@ -443,18 +493,52 @@ export async function qaReviewAction(formData: FormData) {
     redirect(`/qa?error=config-items&item=${qaWorkItemId}`);
   }
 
+  let qaGithubIntegration: ProjectGithubIntegration | null = null;
+  let githubMerge: {
+    repository: string;
+    developmentBranch: string;
+    branch: string;
+    sha: string;
+    alreadyUpToDate: boolean;
+  } | null = null;
+  if (verdict === "approve") {
+    try {
+      qaGithubIntegration = await getProjectGithubIntegration(project.id);
+    } catch {
+      redirect(`/qa?error=github-configuration&item=${qaWorkItemId}`);
+    }
+    if (qaGithubIntegration) {
+      if (!devItem.github_branch) {
+        redirect(`/qa?error=github-branch-required&item=${qaWorkItemId}`);
+      }
+      try {
+        githubMerge = await mergeGithubBranch({
+          ...qaGithubIntegration,
+          branch: devItem.github_branch,
+          commitMessage: `${qaItem.title} · solicitud #${qaItem.change_request_id}`
+        });
+      } catch (error) {
+        redirect(`/qa?error=${githubErrorParam(error)}&item=${qaWorkItemId}`);
+      }
+    }
+  }
+
   await transaction(async (connection) => {
     const nextStatus = verdict === "approve" ? "QA_APPROVED" : "BLOCKED";
     await connection.execute(
-      `INSERT INTO qa_reviews (qa_work_item_id, dev_work_item_id, reviewer_id, verdict, comments, version)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO qa_reviews
+       (qa_work_item_id, dev_work_item_id, reviewer_id, verdict, comments, version,
+        github_merge_sha, github_merged_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, IF(? IS NULL, NULL, NOW()))`,
       [
         qaWorkItemId,
         devItem.id,
         user.id,
         verdict === "approve" ? "APPROVED" : "REJECTED",
         comments,
-        qaItem.version
+        qaItem.version,
+        githubMerge?.sha || null,
+        githubMerge?.sha || null
       ]
     );
 
@@ -470,6 +554,18 @@ export async function qaReviewAction(formData: FormData) {
 
     if (verdict === "approve") {
       if (!evidenceDocumentId) throw new Error("La evidencia QA es obligatoria.");
+
+      if (githubMerge) {
+        await connection.execute(
+          `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
+           VALUES (?, ?, 'QA_FUSIONA_RAMA_GITHUB', 'QA_WAITING', 'QA_WAITING', ?)`,
+          [
+            qaItem.change_request_id,
+            user.id,
+            `${githubMerge.repository}: ${githubMerge.branch} -> ${githubMerge.developmentBranch} (${githubMerge.sha.slice(0, 7)})`
+          ]
+        );
+      }
 
       for (const impact of pendingQaResolutions) {
         const [impactRows] = await connection.execute<RowDataPacket[]>(

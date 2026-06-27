@@ -45,11 +45,13 @@ export function QaWorkCard({
   item,
   documents,
   impacts,
+  githubIntegration,
   defaultOpen = false
 }: {
   item: QaWorkItem;
   documents: DevDocument[];
   impacts: QaConfigurationImpact[];
+  githubIntegration: { repository: string; developmentBranch: string } | null;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -118,8 +120,27 @@ export function QaWorkCard({
               </div>
               <div className="detail-item">
                 <span>Rama GitHub</span>
-                <strong>{item.dev_branch || "Pendiente"}</strong>
+                {githubIntegration && item.dev_branch ? (
+                  <Link
+                    href={`https://github.com/${githubIntegration.repository}/tree/${item.dev_branch
+                      .split("/")
+                      .map(encodeURIComponent)
+                      .join("/")}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {item.dev_branch}
+                  </Link>
+                ) : (
+                  <strong>{item.dev_branch || "Pendiente"}</strong>
+                )}
               </div>
+              {githubIntegration ? (
+                <div className="detail-item">
+                  <span>Destino del merge</span>
+                  <strong>{githubIntegration.developmentBranch}</strong>
+                </div>
+              ) : null}
               <div className="detail-item">
                 <span>Avance DEV</span>
                 <strong>{item.dev_progress}%</strong>
@@ -242,7 +263,7 @@ export function QaWorkCard({
               </label>
               <div className="button-row field-wide">
                 <button type="submit" name="verdict" value="approve">
-                  Aprobar QA
+                  {githubIntegration ? "Fusionar y aprobar QA" : "Aprobar QA"}
                 </button>
                 <button className="button-danger" type="submit" name="verdict" value="reject">
                   Rechazar y devolver a DEV

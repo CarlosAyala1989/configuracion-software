@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "db:init": "node scripts/init-db.mjs",
-    "verify:flow": "node scripts/verify-flow.mjs"
+    "verify:flow": "node scripts/verify-flow.mjs",
+    "verify:github": "node scripts/verify-github.mjs"
   },
   "dependencies": {
     "bcryptjs": "latest",

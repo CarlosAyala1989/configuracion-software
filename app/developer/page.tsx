@@ -20,7 +20,7 @@ export default async function DeveloperPage({
   const params = await searchParams;
   const placeholders = DEVELOPER_CONFIGURATION_CODES.map(() => "?").join(", ");
 
-  const [items, impacts] = await Promise.all([
+  const [items, impacts, githubRows] = await Promise.all([
     query<WorkItemRow>(
       `SELECT wi.*, u.name AS assignee_name, cr.change_code, cr.title AS request_title
        FROM work_items wi
@@ -47,11 +47,30 @@ export default async function DeveloperPage({
          AND pci.element_code IN (${placeholders})
        ORDER BY pci.category, pci.name`,
       [project.id, ...DEVELOPER_CONFIGURATION_CODES]
+    ),
+    query<{
+      github_repository: string | null;
+      github_development_branch: string | null;
+      github_configured: number;
+    }>(
+      `SELECT github_repository, github_development_branch,
+              (github_token_encrypted IS NOT NULL) AS github_configured
+       FROM projects
+       WHERE id = ?`,
+      [project.id]
     )
   ]);
 
   const today = new Date().toISOString().slice(0, 10);
   const openItemId = Number(params.item || 0);
+  const githubIntegration = githubRows[0]?.github_configured &&
+    githubRows[0].github_repository &&
+    githubRows[0].github_development_branch
+    ? {
+        repository: githubRows[0].github_repository,
+        developmentBranch: githubRows[0].github_development_branch
+      }
+    : null;
 
   return (
     <AppShell>
@@ -62,6 +81,18 @@ export default async function DeveloperPage({
             ? "Para completar la tarjeta debes registrar la rama y adjuntar la documentacion tecnica."
             : params.error === "config-items"
             ? "Completa todos los elementos SCM del desarrollador antes de activar QA."
+            : params.error === "github-branch-required"
+            ? "Ingresa el nombre de la rama que se creara en GitHub."
+            : params.error === "invalid-branch" || params.error === "same-branch"
+            ? "El nombre de la rama GitHub no es valido o coincide con la rama de desarrollo."
+            : params.error === "invalid-token" || params.error === "insufficient-permissions"
+            ? "La credencial GitHub del proyecto no tiene permisos suficientes."
+            : params.error === "repository-or-branch-not-found"
+            ? "GitHub no encontro el repositorio o la rama configurada."
+            : params.error === "github-validation"
+            ? "GitHub rechazo la creacion de la rama."
+            : params.error === "github-unavailable" || params.error === "github-configuration"
+            ? "No se pudo usar la integracion GitHub del proyecto."
             : "Revisa los datos del reporte diario."}
         </div>
       ) : null}
@@ -75,6 +106,7 @@ export default async function DeveloperPage({
                 item={item}
                 impacts={impacts.filter((impact) => impact.change_request_id === item.change_request_id)}
                 today={today}
+                githubIntegration={githubIntegration}
                 defaultOpen={openItemId === item.id}
               />
             ))}

@@ -19,14 +19,18 @@ export default async function QaHistoryPage() {
     comments: string;
     version: number;
     reviewer_name: string;
+    github_repository: string | null;
+    github_merge_sha: string | null;
+    github_merged_at: string | null;
     created_at: string;
   }>(
     `SELECT qr.*, qa.title AS qa_title, qa.change_request_id,
-            cr.change_code, u.name AS reviewer_name
+            cr.change_code, u.name AS reviewer_name, p.github_repository
      FROM qa_reviews qr
      INNER JOIN users u ON u.id = qr.reviewer_id
      INNER JOIN work_items qa ON qa.id = qr.qa_work_item_id
      INNER JOIN change_requests cr ON cr.id = qa.change_request_id
+     INNER JOIN projects p ON p.id = qa.project_id
      WHERE qa.project_id = ?
      ORDER BY qr.created_at DESC
      LIMIT 40`,
@@ -47,6 +51,7 @@ export default async function QaHistoryPage() {
                   <th>Veredicto</th>
                   <th>Version</th>
                   <th>Comentarios</th>
+                  <th>Merge GitHub</th>
                   <th>Fecha</th>
                 </tr>
               </thead>
@@ -61,6 +66,19 @@ export default async function QaHistoryPage() {
                     <td>{review.verdict}</td>
                     <td>V{review.version}</td>
                     <td>{review.comments}</td>
+                    <td>
+                      {review.github_repository && review.github_merge_sha ? (
+                        <Link
+                          href={`https://github.com/${review.github_repository}/commit/${review.github_merge_sha}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {review.github_merge_sha.slice(0, 7)}
+                        </Link>
+                      ) : (
+                        <span className="muted">Sin merge automatico</span>
+                      )}
+                    </td>
                     <td>{formatDateTime(review.created_at)}</td>
                   </tr>
                 ))}

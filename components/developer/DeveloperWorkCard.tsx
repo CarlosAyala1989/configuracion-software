@@ -28,11 +28,13 @@ export function DeveloperWorkCard({
   item,
   impacts,
   today,
+  githubIntegration,
   defaultOpen = false
 }: {
   item: WorkItemRow;
   impacts: DeveloperConfigurationImpact[];
   today: string;
+  githubIntegration: { repository: string; developmentBranch: string } | null;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -144,10 +146,41 @@ export function DeveloperWorkCard({
                   <span>Porcentaje restante</span>
                   <strong className="computed-value">{remaining}%</strong>
                 </div>
-                <label className="field">
-                  <span>Rama GitHub</span>
-                  <input name="github_branch" defaultValue={item.github_branch ?? undefined} />
-                </label>
+                {githubIntegration ? (
+                  item.github_branch ? (
+                    <div className="field">
+                      <span>Rama GitHub</span>
+                      <Link
+                        href={`https://github.com/${githubIntegration.repository}/tree/${item.github_branch
+                          .split("/")
+                          .map(encodeURIComponent)
+                          .join("/")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {item.github_branch}
+                      </Link>
+                    </div>
+                  ) : (
+                    <label className="field">
+                      <span>Nombre de nueva rama</span>
+                      <input name="github_branch" required placeholder="feature/carrito" />
+                    </label>
+                  )
+                ) : (
+                  <label className="field">
+                    <span>Rama GitHub</span>
+                    <input name="github_branch" defaultValue={item.github_branch ?? undefined} />
+                  </label>
+                )}
+                {githubIntegration ? (
+                  <div className="field">
+                    <span>Repositorio / destino</span>
+                    <strong className="computed-value">
+                      {githubIntegration.repository} · {githubIntegration.developmentBranch}
+                    </strong>
+                  </div>
+                ) : null}
                 <label className="field field-wide">
                   <span>Que avance hoy</span>
                   <textarea name="today_done" required rows={3} />

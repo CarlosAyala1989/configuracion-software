@@ -99,6 +99,9 @@ const ddl = [
     methodology VARCHAR(80) NOT NULL DEFAULT 'Agile / Scrum',
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
+    github_repository VARCHAR(255) NULL,
+    github_development_branch VARCHAR(220) NULL,
+    github_token_encrypted TEXT NULL,
     status ENUM('PLANNED','ACTIVE','ON_HOLD','CLOSED') NOT NULL DEFAULT 'ACTIVE',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -349,6 +352,8 @@ const ddl = [
     verdict ENUM('APPROVED','REJECTED') NOT NULL,
     comments TEXT NOT NULL,
     version INT UNSIGNED NOT NULL,
+    github_merge_sha VARCHAR(64) NULL,
+    github_merged_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_qa_work (qa_work_item_id),
     CONSTRAINT fk_review_qa FOREIGN KEY (qa_work_item_id) REFERENCES work_items(id) ON DELETE CASCADE,
@@ -798,6 +803,36 @@ async function migrateProjectRequestNumbers(db) {
 
 async function ensureCompatibleSchema(db) {
   await db.execute("ALTER TABLE project_members MODIFY role VARCHAR(80) NOT NULL");
+  await ensureColumn(
+    db,
+    "projects",
+    "github_repository",
+    "github_repository VARCHAR(255) NULL AFTER end_date"
+  );
+  await ensureColumn(
+    db,
+    "projects",
+    "github_development_branch",
+    "github_development_branch VARCHAR(220) NULL AFTER github_repository"
+  );
+  await ensureColumn(
+    db,
+    "projects",
+    "github_token_encrypted",
+    "github_token_encrypted TEXT NULL AFTER github_development_branch"
+  );
+  await ensureColumn(
+    db,
+    "qa_reviews",
+    "github_merge_sha",
+    "github_merge_sha VARCHAR(64) NULL AFTER version"
+  );
+  await ensureColumn(
+    db,
+    "qa_reviews",
+    "github_merged_at",
+    "github_merged_at DATETIME NULL AFTER github_merge_sha"
+  );
   await db.execute(
     `ALTER TABLE documents
      MODIFY doc_type ENUM('REQUEST_ATTACHMENT','CCB_DECISION','DEV_DOCUMENTATION','QA_EVIDENCE','CONFIGURATION_DELIVERABLE','FINAL_OBSERVATION') NOT NULL`
