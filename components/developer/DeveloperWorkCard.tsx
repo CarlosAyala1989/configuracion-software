@@ -29,18 +29,21 @@ export function DeveloperWorkCard({
   impacts,
   today,
   githubIntegration,
+  githubBranches,
   defaultOpen = false
 }: {
   item: WorkItemRow;
   impacts: DeveloperConfigurationImpact[];
   today: string;
-  githubIntegration: { repository: string; developmentBranch: string } | null;
+  githubIntegration: { ownerLogin: string; repository: string; developmentBranch: string } | null;
+  githubBranches: string[];
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [progress, setProgress] = useState(Number(item.progress_percent || 0));
   const [markComplete, setMarkComplete] = useState(false);
   const [resolutions, setResolutions] = useState<Record<number, string>>({});
+  const [branchMode, setBranchMode] = useState<"new" | "existing">("new");
   const remaining = 100 - progress;
 
   useEffect(() => {
@@ -162,10 +165,53 @@ export function DeveloperWorkCard({
                       </Link>
                     </div>
                   ) : (
-                    <label className="field">
-                      <span>Nombre de nueva rama</span>
-                      <input name="github_branch" required placeholder="feature/carrito" />
-                    </label>
+                    <>
+                      <div className="field field-wide">
+                        <span>Rama de trabajo</span>
+                        <div className="segmented-control" role="group" aria-label="Origen de la rama GitHub">
+                          <button
+                            type="button"
+                            className={branchMode === "new" ? undefined : "button-secondary"}
+                            aria-pressed={branchMode === "new"}
+                            onClick={() => setBranchMode("new")}
+                          >
+                            Crear nueva
+                          </button>
+                          <button
+                            type="button"
+                            className={branchMode === "existing" ? undefined : "button-secondary"}
+                            aria-pressed={branchMode === "existing"}
+                            disabled={githubBranches.length === 0}
+                            onClick={() => setBranchMode("existing")}
+                          >
+                            Usar existente
+                          </button>
+                        </div>
+                        <input type="hidden" name="github_branch_mode" value={branchMode} />
+                      </div>
+                      {branchMode === "new" ? (
+                        <>
+                          <label className="field">
+                            <span>Propietario de GitHub</span>
+                            <input readOnly value={`@${githubIntegration.ownerLogin}`} />
+                          </label>
+                          <label className="field">
+                            <span>Nombre de nueva rama</span>
+                            <input name="github_branch" required placeholder="feature/carrito" />
+                          </label>
+                        </>
+                      ) : (
+                        <label className="field field-wide">
+                          <span>Rama existente</span>
+                          <select name="github_branch" required defaultValue="">
+                            <option value="" disabled>Seleccionar rama</option>
+                            {githubBranches.map((branch) => (
+                              <option key={branch} value={branch}>{branch}</option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                    </>
                   )
                 ) : (
                   <label className="field">

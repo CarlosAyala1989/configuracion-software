@@ -18,6 +18,7 @@ import {
   getProjectGithubIntegration,
   githubErrorParam,
   mergeGithubBranch,
+  verifyGithubBranch,
   type ProjectGithubIntegration
 } from "@/lib/github";
 import {
@@ -170,6 +171,7 @@ export async function developerProgressAction(formData: FormData) {
   const remaining = 100 - progress;
   const markComplete = formData.get("mark_complete") === "on";
   const enteredGithubBranch = nullableText(formData, "github_branch");
+  const githubBranchMode = textValue(formData, "github_branch_mode", "new");
   let githubBranch = enteredGithubBranch;
   const workDate = textValue(formData, "work_date");
   const hoursSpent = numberValue(formData, "hours_spent");
@@ -240,20 +242,37 @@ export async function developerProgressAction(formData: FormData) {
     redirect(`/developer?error=github-configuration&item=${workItemId}`);
   }
   if (githubIntegration) githubBranch = item.github_branch || enteredGithubBranch;
-  let createdGithubBranch: { repository: string; branch: string; sha: string } | null = null;
+  let githubBranchOperation: {
+    action: "DEV_CREA_RAMA_GITHUB" | "DEV_ASOCIA_RAMA_GITHUB";
+    repository: string;
+    branch: string;
+    sha: string;
+  } | null = null;
   if (githubIntegration && !item.github_branch) {
-    if (!enteredGithubBranch) {
+    if (!enteredGithubBranch || !["new", "existing"].includes(githubBranchMode)) {
       redirect(`/developer?error=github-branch-required&item=${workItemId}`);
     }
     try {
-      const created = await createGithubBranch({
-        ...githubIntegration,
-        branch: enteredGithubBranch
-      });
-      githubBranch = created.branch;
-      createdGithubBranch = created;
+      if (githubBranchMode === "existing") {
+        const selected = await verifyGithubBranch({
+          ...githubIntegration,
+          branch: enteredGithubBranch
+        });
+        githubBranch = selected.branch;
+        githubBranchOperation = { ...selected, action: "DEV_ASOCIA_RAMA_GITHUB" };
+      } else {
+        const created = await createGithubBranch({
+          ...githubIntegration,
+          branch: enteredGithubBranch
+        });
+        githubBranch = created.branch;
+        githubBranchOperation = { ...created, action: "DEV_CREA_RAMA_GITHUB" };
+      }
     } catch (error) {
       redirect(`/developer?error=${githubErrorParam(error)}&item=${workItemId}`);
+    }
+    if (githubBranch === githubIntegration.developmentBranch) {
+      redirect(`/developer?error=same-branch&item=${workItemId}`);
     }
   }
   if (markComplete && !githubBranch) {
@@ -290,16 +309,17 @@ export async function developerProgressAction(formData: FormData) {
       connection
     });
 
-    if (createdGithubBranch) {
+    if (githubBranchOperation) {
       await connection.execute(
         `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
-         VALUES (?, ?, 'DEV_CREA_RAMA_GITHUB', ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [
           item.change_request_id,
           user.id,
+          githubBranchOperation.action,
           item.status,
           item.status,
-          `${createdGithubBranch.repository}: ${createdGithubBranch.branch} (${createdGithubBranch.sha.slice(0, 7)})`
+          `${githubBranchOperation.repository}: ${githubBranchOperation.branch} (${githubBranchOperation.sha.slice(0, 7)})`
         ]
       );
     }

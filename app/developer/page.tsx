@@ -9,6 +9,7 @@ import { EmptyState, Panel } from "@/components/ui";
 import { requireProjectRole } from "@/lib/auth";
 import { DEVELOPER_CONFIGURATION_CODES } from "@/lib/configuration";
 import { query } from "@/lib/db";
+import { getProjectGithubIntegration, listGithubBranches } from "@/lib/github";
 import type { WorkItemRow } from "@/lib/types";
 
 export default async function DeveloperPage({
@@ -20,7 +21,7 @@ export default async function DeveloperPage({
   const params = await searchParams;
   const placeholders = DEVELOPER_CONFIGURATION_CODES.map(() => "?").join(", ");
 
-  const [items, impacts, githubRows] = await Promise.all([
+  const [items, impacts, githubSecretIntegration] = await Promise.all([
     query<WorkItemRow>(
       `SELECT wi.*, u.name AS assignee_name, cr.change_code, cr.title AS request_title
        FROM work_items wi
@@ -48,27 +49,26 @@ export default async function DeveloperPage({
        ORDER BY pci.category, pci.name`,
       [project.id, ...DEVELOPER_CONFIGURATION_CODES]
     ),
-    query<{
-      github_repository: string | null;
-      github_development_branch: string | null;
-      github_configured: number;
-    }>(
-      `SELECT github_repository, github_development_branch,
-              (github_token_encrypted IS NOT NULL) AS github_configured
-       FROM projects
-       WHERE id = ?`,
-      [project.id]
-    )
+    getProjectGithubIntegration(project.id).catch(() => null)
   ]);
 
   const today = new Date().toISOString().slice(0, 10);
   const openItemId = Number(params.item || 0);
-  const githubIntegration = githubRows[0]?.github_configured &&
-    githubRows[0].github_repository &&
-    githubRows[0].github_development_branch
+  let githubBranches: string[] = [];
+  if (githubSecretIntegration) {
+    try {
+      githubBranches = (await listGithubBranches(githubSecretIntegration))
+        .map((branch) => branch.name)
+        .filter((branch) => branch !== githubSecretIntegration.developmentBranch);
+    } catch {
+      githubBranches = [];
+    }
+  }
+  const githubIntegration = githubSecretIntegration
     ? {
-        repository: githubRows[0].github_repository,
-        developmentBranch: githubRows[0].github_development_branch
+        ownerLogin: githubSecretIntegration.ownerLogin,
+        repository: githubSecretIntegration.repository,
+        developmentBranch: githubSecretIntegration.developmentBranch
       }
     : null;
 
@@ -107,6 +107,7 @@ export default async function DeveloperPage({
                 impacts={impacts.filter((impact) => impact.change_request_id === item.change_request_id)}
                 today={today}
                 githubIntegration={githubIntegration}
+                githubBranches={githubBranches}
                 defaultOpen={openItemId === item.id}
               />
             ))}

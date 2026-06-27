@@ -3,10 +3,15 @@ import http from "node:http";
 
 import {
   createGithubBranch,
+  createGithubRepository,
+  getGithubAuthenticatedUser,
   GithubApiError,
+  listGithubBranches,
   mergeGithubBranch,
   normalizeGithubBranch,
   normalizeGithubRepository,
+  normalizeGithubRepositoryName,
+  verifyGithubBranch,
   verifyGithubIntegration
 } from "../lib/github-api.mjs";
 import { decryptGithubTokenValue, encryptGithubTokenValue } from "../lib/github-crypto.mjs";
@@ -18,6 +23,7 @@ const refs = new Map([["develop", baseSha]]);
 const mergedHeads = new Set();
 const checks = [];
 let authorizationHeader = "";
+let createdRepositoryBody = null;
 
 function json(response, status, body) {
   response.writeHead(status, { "Content-Type": "application/json" });
@@ -34,6 +40,31 @@ const server = http.createServer(async (request, response) => {
   authorizationHeader = String(request.headers.authorization || "");
   const url = new URL(request.url || "/", "http://127.0.0.1");
   const refPrefix = "/repos/acme/app/git/ref/heads/";
+
+  if (request.method === "GET" && url.pathname === "/user") {
+    return json(response, 200, {
+      login: "octoadmin",
+      name: "Octo Admin",
+      avatar_url: "https://avatars.example/octoadmin"
+    });
+  }
+
+  if (request.method === "POST" && url.pathname === "/user/repos") {
+    createdRepositoryBody = await requestBody(request);
+    return json(response, 201, {
+      full_name: `octoadmin/${createdRepositoryBody.name}`,
+      default_branch: "main",
+      html_url: `https://github.com/octoadmin/${createdRepositoryBody.name}`
+    });
+  }
+
+  if (request.method === "GET" && url.pathname === "/repos/acme/app/branches") {
+    return json(response, 200, [...refs].map(([name, sha]) => ({
+      name,
+      commit: { sha },
+      protected: name === "develop"
+    })));
+  }
 
   if (request.method === "GET" && url.pathname.startsWith(refPrefix)) {
     const branch = url.pathname.slice(refPrefix.length).split("/").map(decodeURIComponent).join("/");
@@ -93,9 +124,23 @@ try {
   checks.push("token_cifrado_y_clave_incorrecta_bloqueada");
 
   assert.equal(normalizeGithubRepository("https://github.com/acme/app.git"), "acme/app");
+  assert.equal(normalizeGithubRepositoryName("gestion-configuracion"), "gestion-configuracion");
   assert.equal(normalizeGithubBranch("feature/carrito"), "feature/carrito");
   assert.throws(() => normalizeGithubBranch("feature rama"), GithubApiError);
   checks.push("validacion_repositorio_y_rama");
+
+  const owner = await getGithubAuthenticatedUser(common);
+  assert.equal(owner.login, "octoadmin");
+  const repository = await createGithubRepository({
+    ...common,
+    name: "gestion-configuracion",
+    description: "Proyecto SGCS"
+  });
+  assert.equal(repository.repository, "octoadmin/gestion-configuracion");
+  assert.equal(repository.developmentBranch, "main");
+  assert.equal(createdRepositoryBody.private, true);
+  assert.equal(createdRepositoryBody.auto_init, true);
+  checks.push("propietario_consultado_y_repositorio_creado");
 
   const verified = await verifyGithubIntegration(common);
   assert.equal(verified.sha, baseSha);
@@ -109,6 +154,12 @@ try {
   assert.equal(retried.sha, featureSha);
   assert.equal(retried.alreadyExisted, true);
   checks.push("rama_dev_creada_e_idempotente");
+
+  const branches = await listGithubBranches(common);
+  assert.equal(branches.some((branch) => branch.name === "feature/carrito"), true);
+  const selected = await verifyGithubBranch({ ...common, branch: "feature/carrito" });
+  assert.equal(selected.sha, featureSha);
+  checks.push("ramas_listadas_y_rama_existente_verificada");
 
   const merged = await mergeGithubBranch({ ...common, branch: "feature/carrito" });
   assert.equal(merged.sha, mergeSha);

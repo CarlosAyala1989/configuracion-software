@@ -14,7 +14,7 @@ export default async function AdminProjectsPage({
   const [projects, templates] = await Promise.all([
     query<AdminProjectRow>(
       `SELECT p.id, p.title, p.description, p.methodology, p.start_date, p.end_date, p.status,
-              p.github_repository, p.github_development_branch,
+              p.github_owner_login, p.github_repository, p.github_development_branch,
               (p.github_token_encrypted IS NOT NULL) AS github_configured,
               COUNT(DISTINCT cr.id) AS request_count,
               pdp.cadence AS delivery_cadence,
@@ -26,7 +26,7 @@ export default async function AdminProjectsPage({
        LEFT JOIN project_deliveries pd ON pd.project_id = p.id
        LEFT JOIN project_configuration_items pci ON pci.project_id = p.id AND pci.active = 1
        GROUP BY p.id, p.title, p.description, p.methodology, p.start_date, p.end_date, p.status,
-                p.github_repository, p.github_development_branch, p.github_token_encrypted,
+                p.github_owner_login, p.github_repository, p.github_development_branch, p.github_token_encrypted,
                 pdp.cadence
        ORDER BY p.created_at DESC`
     ),
@@ -41,12 +41,12 @@ export default async function AdminProjectsPage({
     )
   ]);
   const errorMessages: Record<string, string> = {
-    "invalid-repository": "El repositorio GitHub debe usar el formato organizacion/repositorio.",
+    "invalid-repository": "Ingresa un nombre de repositorio GitHub valido.",
     "invalid-branch": "El nombre de la rama de desarrollo no es valido.",
     "invalid-token": "El token GitHub fue rechazado.",
-    "insufficient-permissions": "El token GitHub necesita permiso Contents: write sobre el repositorio.",
+    "insufficient-permissions": "La API Key necesita permisos para crear el repositorio y administrar sus ramas.",
     "repository-or-branch-not-found": "No se encontro el repositorio o la rama de desarrollo con ese token.",
-    "github-validation": "GitHub rechazo la configuracion ingresada.",
+    "github-validation": "GitHub rechazo la configuracion. Verifica que el nombre del repositorio este disponible.",
     "github-unavailable": "GitHub no esta disponible. Intenta nuevamente.",
     "github-configuration": "No se pudo proteger o leer la credencial GitHub del proyecto."
   };

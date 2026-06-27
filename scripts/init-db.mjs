@@ -99,6 +99,7 @@ const ddl = [
     methodology VARCHAR(80) NOT NULL DEFAULT 'Agile / Scrum',
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
+    github_owner_login VARCHAR(100) NULL,
     github_repository VARCHAR(255) NULL,
     github_development_branch VARCHAR(220) NULL,
     github_token_encrypted TEXT NULL,
@@ -806,8 +807,14 @@ async function ensureCompatibleSchema(db) {
   await ensureColumn(
     db,
     "projects",
+    "github_owner_login",
+    "github_owner_login VARCHAR(100) NULL AFTER end_date"
+  );
+  await ensureColumn(
+    db,
+    "projects",
     "github_repository",
-    "github_repository VARCHAR(255) NULL AFTER end_date"
+    "github_repository VARCHAR(255) NULL AFTER github_owner_login"
   );
   await ensureColumn(
     db,
@@ -832,6 +839,11 @@ async function ensureCompatibleSchema(db) {
     "qa_reviews",
     "github_merged_at",
     "github_merged_at DATETIME NULL AFTER github_merge_sha"
+  );
+  await db.execute(
+    `UPDATE projects
+     SET github_owner_login = SUBSTRING_INDEX(github_repository, '/', 1)
+     WHERE github_owner_login IS NULL AND github_repository IS NOT NULL`
   );
   await db.execute(
     `ALTER TABLE documents

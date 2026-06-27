@@ -448,6 +448,25 @@ textarea:focus {
   margin-top: 0;
 }
 
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 360px);
+}
+
+.segmented-control button {
+  border-radius: 0;
+}
+
+.segmented-control button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.segmented-control button:last-child {
+  border-radius: 0 6px 6px 0;
+  margin-left: -1px;
+}
+
 button,
 .button,
 .icon-text-button {

@@ -1,10 +1,11 @@
 "use client";
 
-import { GitBranch } from "lucide-react";
-import { useMemo, useState } from "react";
+import { GitBranch, KeyRound } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
 
 import {
   createProjectAction,
+  loadGithubTokenOwnerAction,
   updateProjectAction,
   updateProjectGithubAction
 } from "@/app/actions/admin";
@@ -36,6 +37,7 @@ export type AdminProjectRow = {
   delivery_cadence: string | null;
   delivery_count: number;
   item_codes: string | null;
+  github_owner_login: string | null;
   github_repository: string | null;
   github_development_branch: string | null;
   github_configured: number;
@@ -54,6 +56,77 @@ function codesFromCsv(value: string | null | undefined) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+type GithubOwner = {
+  login: string;
+  name: string | null;
+  avatarUrl: string | null;
+};
+
+const githubTokenErrors: Record<string, string> = {
+  "invalid-token": "GitHub rechazo la API Key ingresada.",
+  "insufficient-permissions": "La API Key no tiene los permisos necesarios.",
+  "github-unavailable": "GitHub no esta disponible. Intenta nuevamente."
+};
+
+function GithubRepositorySetupFields() {
+  const [token, setToken] = useState("");
+  const [owner, setOwner] = useState<GithubOwner | null>(null);
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  function loadOwner() {
+    setError("");
+    setOwner(null);
+    startTransition(async () => {
+      const result = await loadGithubTokenOwnerAction(token);
+      if (!result.ok) {
+        setError(githubTokenErrors[result.error] || "No se pudo consultar el propietario de la API Key.");
+        return;
+      }
+      setOwner(result.owner);
+    });
+  }
+
+  return (
+    <>
+      <label className="field field-wide">
+        <span>API Key de GitHub</span>
+        <input
+          name="github_token"
+          type="password"
+          required
+          autoComplete="new-password"
+          value={token}
+          onChange={(event) => {
+            setToken(event.target.value);
+            setOwner(null);
+            setError("");
+          }}
+        />
+      </label>
+      <div className="button-row field-wide compact-row">
+        <button type="button" className="button-secondary" disabled={!token.trim() || pending} onClick={loadOwner}>
+          <KeyRound size={16} />
+          {pending ? "Consultando..." : "Cargar API Key"}
+        </button>
+      </div>
+      {error ? <div className="error-banner field-wide">{error}</div> : null}
+      {owner ? (
+        <>
+          <label className="field">
+            <span>Propietario de GitHub</span>
+            <input readOnly value={owner.name ? `${owner.name} (@${owner.login})` : `@${owner.login}`} />
+          </label>
+          <label className="field">
+            <span>Nombre del repositorio</span>
+            <input name="github_repository_name" required placeholder="gestion-configuracion" />
+          </label>
+        </>
+      ) : null}
+    </>
+  );
 }
 
 function ProjectDialog({
@@ -145,6 +218,21 @@ function ProjectDialog({
             <form action={action} className="form-grid project-config-form">
               {project ? <input type="hidden" name="project_id" value={project.id} /> : null}
 
+              {mode === "create" ? (
+                <>
+                  <label className="field field-wide checkbox-field">
+                    <input
+                      name="github_enabled"
+                      type="checkbox"
+                      checked={githubEnabled}
+                      onChange={(event) => setGithubEnabled(event.target.checked)}
+                    />
+                    <span>Integrar proyecto con GitHub</span>
+                  </label>
+                  {githubEnabled ? <GithubRepositorySetupFields /> : null}
+                </>
+              ) : null}
+
               <label className="field">
                 <span>Titulo</span>
                 <input name="title" required defaultValue={project?.title} />
@@ -216,45 +304,6 @@ function ProjectDialog({
                 <span>Descripcion</span>
                 <textarea name="description" rows={3} defaultValue={project?.description ?? undefined} />
               </label>
-
-              {mode === "create" ? (
-                <>
-                  <label className="field field-wide checkbox-field">
-                    <input
-                      name="github_enabled"
-                      type="checkbox"
-                      checked={githubEnabled}
-                      onChange={(event) => setGithubEnabled(event.target.checked)}
-                    />
-                    <span>Integrar proyecto con GitHub</span>
-                  </label>
-                  {githubEnabled ? (
-                    <>
-                      <label className="field">
-                        <span>Repositorio GitHub</span>
-                        <input
-                          name="github_repository"
-                          required
-                          placeholder="organizacion/repositorio"
-                        />
-                      </label>
-                      <label className="field">
-                        <span>Rama de desarrollo</span>
-                        <input name="github_development_branch" required defaultValue="develop" />
-                      </label>
-                      <label className="field field-wide">
-                        <span>API Key / token GitHub</span>
-                        <input
-                          name="github_token"
-                          type="password"
-                          required
-                          autoComplete="new-password"
-                        />
-                      </label>
-                    </>
-                  ) : null}
-                </>
-              ) : null}
 
               <div className="field field-wide">
                 <span>Plantilla ECS</span>
@@ -361,6 +410,7 @@ function ProjectDialog({
 function GithubProjectDialog({ project }: { project: AdminProjectRow }) {
   const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(Boolean(project.github_configured));
+  const [replaceIntegration, setReplaceIntegration] = useState(!project.github_configured);
 
   return (
     <>
@@ -379,6 +429,7 @@ function GithubProjectDialog({ project }: { project: AdminProjectRow }) {
             </div>
             <form action={updateProjectGithubAction} className="form-grid">
               <input type="hidden" name="project_id" value={project.id} />
+              <input type="hidden" name="project_title" value={project.title} />
               <label className="field field-wide checkbox-field">
                 <input
                   name="github_enabled"
@@ -390,32 +441,32 @@ function GithubProjectDialog({ project }: { project: AdminProjectRow }) {
               </label>
               {enabled ? (
                 <>
-                  <label className="field">
-                    <span>Repositorio GitHub</span>
-                    <input
-                      name="github_repository"
-                      required
-                      defaultValue={project.github_repository || ""}
-                      placeholder="organizacion/repositorio"
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Rama de desarrollo</span>
-                    <input
-                      name="github_development_branch"
-                      required
-                      defaultValue={project.github_development_branch || "develop"}
-                    />
-                  </label>
-                  <label className="field field-wide">
-                    <span>{project.github_configured ? "Nueva API Key / token (opcional)" : "API Key / token GitHub"}</span>
-                    <input
-                      name="github_token"
-                      type="password"
-                      required={!project.github_configured}
-                      autoComplete="new-password"
-                    />
-                  </label>
+                  {project.github_configured ? (
+                    <>
+                      <label className="field">
+                        <span>Propietario de GitHub</span>
+                        <input readOnly value={`@${project.github_owner_login || "desconocido"}`} />
+                      </label>
+                      <label className="field">
+                        <span>Repositorio</span>
+                        <input readOnly value={project.github_repository || ""} />
+                      </label>
+                      <label className="field field-wide">
+                        <span>Rama base</span>
+                        <input readOnly value={project.github_development_branch || ""} />
+                      </label>
+                      <label className="field field-wide checkbox-field">
+                        <input
+                          name="replace_github_integration"
+                          type="checkbox"
+                          checked={replaceIntegration}
+                          onChange={(event) => setReplaceIntegration(event.target.checked)}
+                        />
+                        <span>Crear otro repositorio con una API Key diferente</span>
+                      </label>
+                    </>
+                  ) : null}
+                  {replaceIntegration ? <GithubRepositorySetupFields /> : null}
                 </>
               ) : null}
               <div className="button-row field-wide">
@@ -482,7 +533,9 @@ export function ProjectManager({
                       <>
                         <strong>{project.github_repository}</strong>
                         <br />
-                        <span className="muted">{project.github_development_branch}</span>
+                        <span className="muted">
+                          @{project.github_owner_login || "desconocido"} · {project.github_development_branch}
+                        </span>
                       </>
                     ) : (
                       <span className="badge badge-neutral">Sin integrar</span>

@@ -2,10 +2,15 @@ import "server-only";
 
 import {
   createGithubBranch,
+  createGithubRepository,
+  getGithubAuthenticatedUser,
   GithubApiError,
+  listGithubBranches,
   mergeGithubBranch,
   normalizeGithubBranch,
   normalizeGithubRepository,
+  normalizeGithubRepositoryName,
+  verifyGithubBranch,
   verifyGithubIntegration
 } from "@/lib/github-api";
 import { query } from "@/lib/db";
@@ -13,14 +18,20 @@ import { decryptGithubTokenValue, encryptGithubTokenValue } from "@/lib/github-c
 
 export {
   createGithubBranch,
+  createGithubRepository,
+  getGithubAuthenticatedUser,
   GithubApiError,
+  listGithubBranches,
   mergeGithubBranch,
   normalizeGithubBranch,
   normalizeGithubRepository,
+  normalizeGithubRepositoryName,
+  verifyGithubBranch,
   verifyGithubIntegration
 };
 
 export type ProjectGithubIntegration = {
+  ownerLogin: string;
   repository: string;
   developmentBranch: string;
   token: string;
@@ -45,10 +56,11 @@ export function decryptGithubToken(value: string) {
 export async function getProjectGithubIntegration(projectId: number): Promise<ProjectGithubIntegration | null> {
   const rows = await query<{
     github_repository: string | null;
+    github_owner_login: string | null;
     github_development_branch: string | null;
     github_token_encrypted: string | null;
   }>(
-    `SELECT github_repository, github_development_branch, github_token_encrypted
+    `SELECT github_owner_login, github_repository, github_development_branch, github_token_encrypted
      FROM projects
      WHERE id = ?
      LIMIT 1`,
@@ -57,6 +69,7 @@ export async function getProjectGithubIntegration(projectId: number): Promise<Pr
   const row = rows[0];
   if (!row?.github_repository || !row.github_development_branch || !row.github_token_encrypted) return null;
   return {
+    ownerLogin: row.github_owner_login || row.github_repository.split("/")[0],
     repository: row.github_repository,
     developmentBranch: row.github_development_branch,
     token: decryptGithubToken(row.github_token_encrypted)
