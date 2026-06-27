@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { pmDecisionAction, pmSendToRequesterAction } from "@/app/actions/requests";
+import { pmDecisionAction } from "@/app/actions/requests";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState, Panel, PriorityBadge, RequestLink, StatusBadge, TextArea } from "@/components/ui";
 import { requireProjectRole } from "@/lib/auth";
@@ -16,24 +16,14 @@ export default async function ProjectManagerPage({
   const { project } = await requireProjectRole(["JEFE_PROYECTO"]);
   const params = await searchParams;
 
-  const [pending, finalReview] = await Promise.all([
-    query<ChangeRequestRow>(
-      `SELECT cr.*, u.name AS requester_name
-       FROM change_requests cr
-       INNER JOIN users u ON u.id = cr.requester_id
-       WHERE cr.project_id = ? AND cr.status IN ('PM_REVIEW','CCB_APPROVED_TO_PM')
-       ORDER BY cr.updated_at ASC`,
-      [project.id]
-    ),
-    query<ChangeRequestRow>(
-      `SELECT cr.*, u.name AS requester_name
-       FROM change_requests cr
-       INNER JOIN users u ON u.id = cr.requester_id
-       WHERE cr.project_id = ? AND cr.status = 'PM_FINAL_REVIEW'
-       ORDER BY cr.updated_at ASC`,
-      [project.id]
-    )
-  ]);
+  const pending = await query<ChangeRequestRow>(
+    `SELECT cr.*, u.name AS requester_name
+     FROM change_requests cr
+     INNER JOIN users u ON u.id = cr.requester_id
+     WHERE cr.project_id = ? AND cr.status IN ('PM_REVIEW','CCB_APPROVED_TO_PM')
+     ORDER BY cr.updated_at ASC`,
+    [project.id]
+  );
 
   return (
     <AppShell>
@@ -97,31 +87,6 @@ export default async function ProjectManagerPage({
           </div>
         ) : (
           <EmptyState title="Sin solicitudes pendientes">No hay cambios esperando decision del PM.</EmptyState>
-        )}
-      </Panel>
-
-      <Panel id="cierres-pendientes" title="Cambios listos para enviar al solicitante" eyebrow="Cierre funcional">
-        {finalReview.length ? (
-          <div className="grid grid-2">
-            {finalReview.map((request) => (
-              <article className="work-card" key={request.id}>
-                <header>
-                  <div>
-                    <RequestLink id={request.id} code={request.change_code} title={request.title} />
-                    <p className="muted">{request.requester_name}</p>
-                  </div>
-                  <StatusBadge status={request.status} compact />
-                </header>
-                <form action={pmSendToRequesterAction} className="grid">
-                  <input type="hidden" name="request_id" value={request.id} />
-                  <TextArea label="Mensaje para el solicitante" name="comment" rows={3} />
-                  <button type="submit">Enviar a validacion del solicitante</button>
-                </form>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyState title="Sin cierres pendientes">QA y Lider Tecnico aun no liberan cambios.</EmptyState>
         )}
       </Panel>
 

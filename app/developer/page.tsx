@@ -36,11 +36,13 @@ export default async function DeveloperPage({
     query<DeveloperConfigurationImpact>(
       `SELECT cri.id, cri.change_request_id, cri.status, cri.old_version, cri.new_version,
               cri.deliverable_notes, cri.document_id,
-              pci.name AS item_name, pci.category AS item_category,
-              d.file_name AS document_file_name
+              pci.name AS item_name, pci.category AS item_category, pci.current_version,
+              pci.current_document_id, d.file_name AS document_file_name,
+              current_doc.file_name AS current_document_file_name
        FROM change_request_configuration_impacts cri
        INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
        LEFT JOIN documents d ON d.id = cri.document_id
+       LEFT JOIN documents current_doc ON current_doc.id = pci.current_document_id
        WHERE pci.project_id = ?
          AND pci.element_code IN (${placeholders})
        ORDER BY pci.category, pci.name`,

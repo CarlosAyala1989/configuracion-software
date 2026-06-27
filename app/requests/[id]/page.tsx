@@ -18,7 +18,12 @@ import {
   TextArea
 } from "@/components/ui";
 import { canUseRole, getActiveProject, requireUser } from "@/lib/auth";
-import { CONFIGURATION_IMPACT_STATUS_LABELS, CONFIGURATION_IMPACT_TYPE_LABELS } from "@/lib/configuration";
+import {
+  CONFIGURATION_IMPACT_STATUS_LABELS,
+  CONFIGURATION_IMPACT_TYPE_LABELS,
+  isDeveloperConfigurationCode,
+  isQaConfigurationCode
+} from "@/lib/configuration";
 import { query } from "@/lib/db";
 import { getDocumentsForChange } from "@/lib/documents";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
@@ -149,8 +154,11 @@ export default async function RequestDetailPage({
           id: number;
           configuration_item_id: number;
           item_name: string;
+          element_code: string;
           item_category: string;
           current_version: number;
+          current_document_id: number | null;
+          current_document_file_name: string | null;
           source_name: string | null;
           impact_type: string;
           reason: string | null;
@@ -163,16 +171,18 @@ export default async function RequestDetailPage({
           resolver_name: string | null;
           resolved_at: string | null;
         }>(
-          `SELECT cri.id, cri.configuration_item_id, pci.name AS item_name,
-                  pci.category AS item_category, pci.current_version,
+          `SELECT cri.id, cri.configuration_item_id, pci.name AS item_name, pci.element_code,
+                  pci.category AS item_category, pci.current_version, pci.current_document_id,
                   source.name AS source_name, cri.impact_type, cri.reason, cri.status,
                   cri.old_version, cri.new_version, cri.deliverable_notes,
                   cri.document_id, doc.file_name AS document_file_name,
+                  current_doc.file_name AS current_document_file_name,
                   resolver.name AS resolver_name, cri.resolved_at
            FROM change_request_configuration_impacts cri
            INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
            LEFT JOIN project_configuration_items source ON source.id = cri.source_item_id
            LEFT JOIN documents doc ON doc.id = cri.document_id
+           LEFT JOIN documents current_doc ON current_doc.id = pci.current_document_id
            LEFT JOIN users resolver ON resolver.id = cri.resolved_by
            WHERE cri.change_request_id = ?
            ORDER BY FIELD(cri.impact_type, 'DIRECT', 'RELATED'), pci.category, pci.name`,
@@ -196,6 +206,8 @@ export default async function RequestDetailPage({
         <div className="error-banner">
           {paramsError === "config-deliverable"
             ? "Para resolver un ECS debes registrar sustento; si cambio, tambien debes adjuntar el entregable."
+            : paramsError === "config-first-delivery"
+            ? "La primera entrega de un elemento SCM es obligatoria; todavia no puede marcarse sin cambio."
             : "Completa los campos obligatorios antes de continuar."}
         </div>
       ) : null}
@@ -280,7 +292,13 @@ export default async function RequestDetailPage({
               {configurationImpacts.map((impact) => {
                 const statusTone =
                   impact.status === "CHANGED" ? "success" : impact.status === "NO_CHANGE" ? "neutral" : "warning";
-                const canResolve = impact.status !== "CHANGED" && request.status !== "CLOSED_APPROVED";
+                const ownsImpact =
+                  user.is_admin ||
+                  (canUseRole(user, role, ["DESARROLLADOR"]) &&
+                    isDeveloperConfigurationCode(impact.element_code)) ||
+                  (canUseRole(user, role, ["QA"]) && isQaConfigurationCode(impact.element_code));
+                const canResolve =
+                  ownsImpact && impact.status !== "CHANGED" && request.status !== "CLOSED_APPROVED";
 
                 return (
                   <article className="work-card" key={impact.id}>
@@ -298,11 +316,11 @@ export default async function RequestDetailPage({
                     <div className="detail-list">
                       <div className="detail-item">
                         <span>Version al solicitar</span>
-                        <strong>V{impact.old_version}</strong>
+                        <strong>{impact.old_version ? `V${impact.old_version}` : "Sin entrega"}</strong>
                       </div>
                       <div className="detail-item">
                         <span>Version actual</span>
-                        <strong>V{impact.current_version}</strong>
+                        <strong>{impact.current_document_id ? `V${impact.current_version}` : "Sin entrega"}</strong>
                       </div>
                       <div className="detail-item">
                         <span>Resultado</span>
@@ -328,6 +346,14 @@ export default async function RequestDetailPage({
                         </Link>
                       </div>
                     ) : null}
+                    {impact.status === "PENDING" && impact.current_document_id ? (
+                      <div className="doc-list">
+                        <Link href={`/api/documents/${impact.current_document_id}`}>
+                          <span>{impact.current_document_file_name || `Documentacion vigente V${impact.current_version}`}</span>
+                          <small>Documento base para esta solicitud</small>
+                        </Link>
+                      </div>
+                    ) : null}
                     {impact.resolver_name ? (
                       <p className="muted">
                         {impact.resolver_name} · {formatDateTime(impact.resolved_at)}
@@ -348,7 +374,7 @@ export default async function RequestDetailPage({
                             </button>
                           </div>
                         </form>
-                        {impact.status === "PENDING" ? (
+                        {impact.status === "PENDING" && impact.current_document_id ? (
                           <form action={resolveConfigurationImpactAction} className="grid">
                             <input type="hidden" name="impact_id" value={impact.id} />
                             <TextArea label="Justificacion para no cambiar" name="deliverable_notes" rows={3} required />

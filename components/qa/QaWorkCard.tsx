@@ -24,16 +24,36 @@ export type DevDocument = {
   created_at: string;
 };
 
+export type QaConfigurationImpact = {
+  id: number;
+  change_request_id: number;
+  element_code: string;
+  item_name: string;
+  item_category: string;
+  status: string;
+  old_version: number;
+  new_version: number | null;
+  deliverable_notes: string | null;
+  document_id: number | null;
+  document_file_name: string | null;
+  current_version: number;
+  current_document_id: number | null;
+  current_document_file_name: string | null;
+};
+
 export function QaWorkCard({
   item,
   documents,
+  impacts,
   defaultOpen = false
 }: {
   item: QaWorkItem;
   documents: DevDocument[];
+  impacts: QaConfigurationImpact[];
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [resolutions, setResolutions] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (!open) return;
@@ -120,6 +140,98 @@ export function QaWorkCard({
 
             <form action={qaReviewAction} className="form-grid modal-section">
               <input type="hidden" name="qa_work_item_id" value={item.id} />
+              {impacts.length ? (
+                <section className="field-wide scm-deliverables">
+                  <div>
+                    <h3>Elementos SCM de QA</h3>
+                    <span className="muted">Se completan al aprobar</span>
+                  </div>
+                  {impacts.map((impact) => {
+                    const resolution = resolutions[impact.id] || "";
+                    const isFirstDelivery = !impact.current_document_id;
+                    const usesReviewEvidence = impact.element_code === "QA_EVIDENCE";
+                    return (
+                      <fieldset className="scm-deliverable" key={impact.id}>
+                        <legend>{impact.item_name}</legend>
+                        <p className="muted">
+                          {impact.item_category} · {impact.current_document_id ? `V${impact.current_version}` : "Sin entrega previa"}
+                        </p>
+                        {impact.current_document_id ? (
+                          <Link href={`/api/documents/${impact.current_document_id}`}>
+                            Documentacion vigente: {impact.current_document_file_name || `V${impact.current_version}`}
+                          </Link>
+                        ) : null}
+                        {impact.status === "PENDING" ? (
+                          <div className="form-grid">
+                            {isFirstDelivery ? (
+                              <div className="field">
+                                <span>Resultado</span>
+                                <strong className="computed-value">Carga inicial obligatoria</strong>
+                                <input
+                                  type="hidden"
+                                  name={`impact_resolution_${impact.id}`}
+                                  value="changed"
+                                />
+                              </div>
+                            ) : (
+                              <label className="field">
+                                <span>Resultado</span>
+                                <select
+                                  name={`impact_resolution_${impact.id}`}
+                                  value={resolution}
+                                  onChange={(event) =>
+                                    setResolutions((current) => ({
+                                      ...current,
+                                      [impact.id]: event.target.value
+                                    }))
+                                  }
+                                >
+                                  <option value="">Seleccionar</option>
+                                  <option value="changed">Elemento actualizado</option>
+                                  <option value="no_change">Usar documentacion vigente</option>
+                                </select>
+                              </label>
+                            )}
+                            <label className="field field-wide">
+                              <span>Sustento</span>
+                              <textarea name={`impact_notes_${impact.id}`} rows={2} />
+                            </label>
+                            {isFirstDelivery || resolution === "changed" ? (
+                              usesReviewEvidence ? (
+                                <div className="field field-wide">
+                                  <span>Entregable</span>
+                                  <strong className="computed-value">Se usara la evidencia QA adjunta</strong>
+                                </div>
+                              ) : (
+                                <label className="field field-wide">
+                                  <span>{isFirstDelivery ? "Primera entrega" : "Entregable actualizado"}</span>
+                                  <input
+                                    name={`impact_file_${impact.id}`}
+                                    type="file"
+                                    accept=".pdf,.doc,.docx"
+                                  />
+                                </label>
+                              )
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="detail-list">
+                            <div className="detail-item">
+                              <span>Resultado</span>
+                              <strong>{impact.status === "CHANGED" ? `Actualizado a V${impact.new_version}` : "Documentacion vigente reutilizada"}</strong>
+                            </div>
+                            {impact.document_id ? (
+                              <Link href={`/api/documents/${impact.document_id}`}>
+                                {impact.document_file_name || "Ver entregable"}
+                              </Link>
+                            ) : null}
+                          </div>
+                        )}
+                      </fieldset>
+                    );
+                  })}
+                </section>
+              ) : null}
               <label className="field field-wide">
                 <span>Resultado de la revision</span>
                 <textarea name="comments" rows={4} required />

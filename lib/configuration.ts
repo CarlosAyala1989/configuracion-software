@@ -46,9 +46,25 @@ export const DEVELOPER_CONFIGURATION_CODES = [
   "BUILD_SCRIPTS",
   "IAC",
   "CI_CD_PIPELINES",
-  "AUTOMATED_TESTS",
   "AUDIT_LOGS"
 ] as const;
+
+export const QA_CONFIGURATION_CODES = [
+  "TRACEABILITY_MATRIX",
+  "QA_EVIDENCE",
+  "TEST_DATA",
+  "TEST_CASES",
+  "AUTOMATED_TESTS",
+  "DEFECT_REPORTS"
+] as const;
+
+export function isDeveloperConfigurationCode(code: string) {
+  return (DEVELOPER_CONFIGURATION_CODES as readonly string[]).includes(code);
+}
+
+export function isQaConfigurationCode(code: string) {
+  return (QA_CONFIGURATION_CODES as readonly string[]).includes(code);
+}
 
 export const CONFIGURATION_IMPACT_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendiente",

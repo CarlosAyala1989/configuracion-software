@@ -19,6 +19,9 @@ export type DeveloperConfigurationImpact = {
   deliverable_notes: string | null;
   document_id: number | null;
   document_file_name: string | null;
+  current_version: number;
+  current_document_id: number | null;
+  current_document_file_name: string | null;
 };
 
 export function DeveloperWorkCard({
@@ -170,30 +173,50 @@ export function DeveloperWorkCard({
                     </div>
                     {impacts.map((impact) => {
                       const resolution = resolutions[impact.id] || "";
+                      const isFirstDelivery = !impact.current_document_id;
                       return (
                         <fieldset className="scm-deliverable" key={impact.id}>
                           <legend>{impact.item_name}</legend>
-                          <p className="muted">{impact.item_category} · V{impact.old_version}</p>
+                          <p className="muted">
+                            {impact.item_category} · {impact.current_document_id ? `V${impact.current_version}` : "Sin entrega previa"}
+                          </p>
+                          {impact.current_document_id ? (
+                            <Link href={`/api/documents/${impact.current_document_id}`}>
+                              Documentacion vigente: {impact.current_document_file_name || `V${impact.current_version}`}
+                            </Link>
+                          ) : null}
                           {impact.status === "PENDING" ? (
                             <div className="form-grid">
-                              <label className="field">
-                                <span>Resultado</span>
-                                <select
-                                  name={`impact_resolution_${impact.id}`}
-                                  value={resolution}
-                                  required={markComplete}
-                                  onChange={(event) =>
-                                    setResolutions((current) => ({
-                                      ...current,
-                                      [impact.id]: event.target.value
-                                    }))
-                                  }
-                                >
-                                  <option value="">Seleccionar</option>
-                                  <option value="changed">Elemento actualizado</option>
-                                  <option value="no_change">No requirio cambio</option>
-                                </select>
-                              </label>
+                              {isFirstDelivery ? (
+                                <div className="field">
+                                  <span>Resultado</span>
+                                  <strong className="computed-value">Carga inicial obligatoria</strong>
+                                  <input
+                                    type="hidden"
+                                    name={`impact_resolution_${impact.id}`}
+                                    value="changed"
+                                  />
+                                </div>
+                              ) : (
+                                <label className="field">
+                                  <span>Resultado</span>
+                                  <select
+                                    name={`impact_resolution_${impact.id}`}
+                                    value={resolution}
+                                    required={markComplete}
+                                    onChange={(event) =>
+                                      setResolutions((current) => ({
+                                        ...current,
+                                        [impact.id]: event.target.value
+                                      }))
+                                    }
+                                  >
+                                    <option value="">Seleccionar</option>
+                                    <option value="changed">Elemento actualizado</option>
+                                    <option value="no_change">Usar documentacion vigente</option>
+                                  </select>
+                                </label>
+                              )}
                               <label className="field field-wide">
                                 <span>Sustento</span>
                                 <textarea
@@ -202,9 +225,9 @@ export function DeveloperWorkCard({
                                   required={markComplete}
                                 />
                               </label>
-                              {resolution === "changed" ? (
+                              {isFirstDelivery || resolution === "changed" ? (
                                 <label className="field field-wide">
-                                  <span>Entregable actualizado</span>
+                                  <span>{isFirstDelivery ? "Primera entrega" : "Entregable actualizado"}</span>
                                   <input
                                     name={`impact_file_${impact.id}`}
                                     type="file"

@@ -4,6 +4,7 @@ import { PoolConnection, RowDataPacket } from "mysql2/promise";
 
 import {
   DEVELOPER_CONFIGURATION_CODES,
+  QA_CONFIGURATION_CODES,
   getConfigurationItemDefinition,
   getConfigurationItemMap,
   getConfigurationRelationsForMethodology,
@@ -209,7 +210,7 @@ export async function createChangeRequestConfigurationImpacts(
       sourceItemId: null,
       impactType: "DIRECT",
       reason: "Elemento indicado como cambio principal en la solicitud.",
-      oldVersion: Number(row.current_version || 1)
+      oldVersion: Number(row.current_version || 0)
     });
   }
 
@@ -232,7 +233,7 @@ export async function createChangeRequestConfigurationImpacts(
       sourceItemId: Number(row.source_item_id),
       impactType: "RELATED",
       reason: String(row.rationale || "Elemento relacionado por regla de impacto SCM."),
-      oldVersion: Number(row.target_version || 1)
+      oldVersion: Number(row.target_version || 0)
     });
   }
 
@@ -285,7 +286,40 @@ export async function createDeveloperConfigurationImpacts(
         changeRequestId,
         item.id,
         "Elemento SCM bajo responsabilidad del desarrollador.",
-        Number(item.current_version || 1)
+        Number(item.current_version || 0)
+      ]
+    );
+  }
+
+  return items.length;
+}
+
+export async function createQaConfigurationImpacts(
+  connection: PoolConnection,
+  projectId: number,
+  changeRequestId: number
+) {
+  const placeholders = QA_CONFIGURATION_CODES.map(() => "?").join(", ");
+  const [items] = await connection.execute<RowDataPacket[]>(
+    `SELECT id, current_version
+     FROM project_configuration_items
+     WHERE project_id = ?
+       AND active = 1
+       AND element_code IN (${placeholders})`,
+    [projectId, ...QA_CONFIGURATION_CODES]
+  );
+
+  for (const item of items) {
+    await connection.execute(
+      `INSERT INTO change_request_configuration_impacts
+       (change_request_id, configuration_item_id, source_item_id, impact_type, reason, old_version)
+       VALUES (?, ?, NULL, 'DIRECT', ?, ?)
+       ON DUPLICATE KEY UPDATE reason = VALUES(reason)`,
+      [
+        changeRequestId,
+        item.id,
+        "Elemento SCM bajo responsabilidad de QA.",
+        Number(item.current_version || 0)
       ]
     );
   }

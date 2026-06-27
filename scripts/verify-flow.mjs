@@ -176,9 +176,13 @@ async function main() {
       await db.execute(
         `INSERT INTO change_request_configuration_impacts
          (change_request_id, configuration_item_id, impact_type, reason, old_version)
-         SELECT ?, id, 'DIRECT', 'Elemento SCM bajo responsabilidad del desarrollador.', current_version
+         SELECT ?, id, 'DIRECT',
+                IF(element_code = 'SOURCE_CODE',
+                   'Elemento SCM bajo responsabilidad del desarrollador.',
+                   'Elemento SCM bajo responsabilidad de QA.'),
+                current_version
          FROM project_configuration_items
-         WHERE project_id = ? AND element_code = 'SOURCE_CODE'`,
+         WHERE project_id = ? AND element_code IN ('SOURCE_CODE', 'QA_EVIDENCE')`,
         [changeId, projectId]
       );
       await setChange(
@@ -193,14 +197,44 @@ async function main() {
     }
 
     async function completeDev(changeId, devId, qaId, fromStatus = "DEV_IN_PROGRESS") {
-      await db.execute(
-        `UPDATE change_request_configuration_impacts cri
-         INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
-         SET cri.status = 'NO_CHANGE', cri.deliverable_notes = 'Verificado por DEV',
-             cri.resolved_by = ?, cri.resolved_at = NOW()
-         WHERE cri.change_request_id = ? AND pci.element_code = 'SOURCE_CODE'`,
-        [userIds.DESARROLLADOR, changeId]
+      const [sourceRows] = await db.execute(
+        `SELECT pci.id, pci.current_version, pci.current_document_id, cri.status AS impact_status
+         FROM project_configuration_items pci
+         INNER JOIN change_request_configuration_impacts cri
+           ON cri.configuration_item_id = pci.id AND cri.change_request_id = ?
+         WHERE pci.project_id = ? AND pci.element_code = 'SOURCE_CODE'`,
+        [changeId, projectId]
       );
+      const source = sourceRows[0];
+      if (source.impact_status !== "PENDING") {
+        // El reingreso desde QA conserva la resolucion SCM ya registrada para esta solicitud.
+      } else if (!source.current_document_id) {
+        const [documentResult] = await db.execute(
+          `INSERT INTO documents
+           (project_id, change_request_id, work_item_id, uploaded_by, doc_type, file_name, mime_type, size_bytes, content)
+           VALUES (?, ?, ?, ?, 'CONFIGURATION_DELIVERABLE', 'source-v1.pdf', 'application/pdf', 8, ?)`,
+          [projectId, changeId, devId, userIds.DESARROLLADOR, Buffer.from("%PDF-1.4")]
+        );
+        await db.execute(
+          "UPDATE project_configuration_items SET current_version = 1, current_document_id = ? WHERE id = ?",
+          [documentResult.insertId, source.id]
+        );
+        await db.execute(
+          `UPDATE change_request_configuration_impacts
+           SET status = 'CHANGED', old_version = 0, new_version = 1,
+               deliverable_notes = 'Primera entrega DEV', document_id = ?, resolved_by = ?, resolved_at = NOW()
+           WHERE change_request_id = ? AND configuration_item_id = ?`,
+          [documentResult.insertId, userIds.DESARROLLADOR, changeId, source.id]
+        );
+      } else {
+        await db.execute(
+          `UPDATE change_request_configuration_impacts
+           SET status = 'NO_CHANGE', deliverable_notes = 'Se reutiliza documentacion DEV',
+               document_id = ?, resolved_by = ?, resolved_at = NOW()
+           WHERE change_request_id = ? AND configuration_item_id = ?`,
+          [source.current_document_id, userIds.DESARROLLADOR, changeId, source.id]
+        );
+      }
       await db.execute(
         `INSERT INTO work_item_updates
          (work_item_id, user_id, work_date, hours_spent, today_done, tomorrow_plan,
@@ -226,6 +260,40 @@ async function main() {
     }
 
     async function approveQa(changeId, devId, qaId) {
+      const [qaItemRows] = await db.execute(
+        `SELECT id, current_version, current_document_id
+         FROM project_configuration_items
+         WHERE project_id = ? AND element_code = 'QA_EVIDENCE'`,
+        [projectId]
+      );
+      const qaConfigurationItem = qaItemRows[0];
+      if (!qaConfigurationItem.current_document_id) {
+        const [documentResult] = await db.execute(
+          `INSERT INTO documents
+           (project_id, change_request_id, work_item_id, uploaded_by, doc_type, file_name, mime_type, size_bytes, content)
+           VALUES (?, ?, ?, ?, 'QA_EVIDENCE', 'qa-v1.pdf', 'application/pdf', 8, ?)`,
+          [projectId, changeId, qaId, userIds.QA, Buffer.from("%PDF-1.4")]
+        );
+        await db.execute(
+          "UPDATE project_configuration_items SET current_version = 1, current_document_id = ? WHERE id = ?",
+          [documentResult.insertId, qaConfigurationItem.id]
+        );
+        await db.execute(
+          `UPDATE change_request_configuration_impacts
+           SET status = 'CHANGED', old_version = 0, new_version = 1,
+               deliverable_notes = 'Primera entrega QA', document_id = ?, resolved_by = ?, resolved_at = NOW()
+           WHERE change_request_id = ? AND configuration_item_id = ?`,
+          [documentResult.insertId, userIds.QA, changeId, qaConfigurationItem.id]
+        );
+      } else {
+        await db.execute(
+          `UPDATE change_request_configuration_impacts
+           SET status = 'NO_CHANGE', deliverable_notes = 'Se reutiliza documentacion QA',
+               document_id = ?, resolved_by = ?, resolved_at = NOW()
+           WHERE change_request_id = ? AND configuration_item_id = ?`,
+          [qaConfigurationItem.current_document_id, userIds.QA, changeId, qaConfigurationItem.id]
+        );
+      }
       const [qaRows] = await db.execute("SELECT version FROM work_items WHERE id = ?", [qaId]);
       await db.execute(
         `INSERT INTO qa_reviews (qa_work_item_id, dev_work_item_id, reviewer_id, verdict, comments, version)
@@ -295,13 +363,24 @@ async function main() {
       [changeA]
     );
     assert(
-      Number(developerImpactRows[0].total) === 1 &&
+      Number(developerImpactRows[0].total) === 2 &&
         Number(developerImpactRows[0].developer_total) === 1 &&
-        Number(developerImpactRows[0].qa_total) === 0,
-      "La asignacion SCM incluyo elementos fuera de responsabilidad DEV"
+        Number(developerImpactRows[0].qa_total) === 1,
+      "La asignacion SCM no separo correctamente los elementos DEV y QA"
     );
-    checks.push("elementos_scm_filtrados_para_desarrollador");
+    checks.push("elementos_scm_separados_para_dev_y_qa");
     await completeDev(changeA, cardsA.devId, cardsA.qaId);
+    const [firstBaselineRows] = await db.execute(
+      `SELECT current_version, current_document_id
+       FROM project_configuration_items
+       WHERE project_id = ? AND element_code = 'SOURCE_CODE'`,
+      [projectId]
+    );
+    assert(
+      Number(firstBaselineRows[0].current_version) === 1 && firstBaselineRows[0].current_document_id,
+      "La primera entrega DEV no creo la linea base V1"
+    );
+    checks.push("primera_entrega_scm_crea_linea_base_v1");
     await db.execute(
       `INSERT INTO qa_reviews (qa_work_item_id, dev_work_item_id, reviewer_id, verdict, comments, version)
        VALUES (?, ?, ?, 'REJECTED', 'QA rechaza con observacion', 1)`,
@@ -343,6 +422,22 @@ async function main() {
     const cardsB = await createDevAndQa(changeB);
     await completeDev(changeB, cardsB.devId, cardsB.qaId);
     await approveQa(changeB, cardsB.devId, cardsB.qaId);
+    const [reusedRows] = await db.execute(
+      `SELECT cri.status, cri.document_id, pci.current_document_id
+       FROM change_request_configuration_impacts cri
+       INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+       WHERE cri.change_request_id = ?
+       ORDER BY pci.element_code`,
+      [changeB]
+    );
+    assert(
+      reusedRows.length === 2 &&
+        reusedRows.every(
+          (row) => row.status === "NO_CHANGE" && Number(row.document_id) === Number(row.current_document_id)
+        ),
+      "La segunda solicitud no reutilizo la documentacion SCM vigente"
+    );
+    checks.push("solicitud_posterior_reutiliza_documentacion_vigente");
     await setChange(changeB, "LIDER_TECNICO", "TL_ENVIA_PM", "TECH_LEAD_REVIEW", "PM_FINAL_REVIEW", "TL libera");
     await setChange(changeB, "JEFE_PROYECTO", "PM_ENVIA_SOLICITANTE", "PM_FINAL_REVIEW", "REQUESTER_VALIDATION", "PM envia");
     await db.execute("UPDATE change_requests SET status = 'CLOSED_APPROVED', closed_at = NOW() WHERE id = ?", [

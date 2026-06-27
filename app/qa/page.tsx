@@ -3,11 +3,12 @@ import { EmptyState, Panel } from "@/components/ui";
 import {
   QaWorkCard,
   type DevDocument,
+  type QaConfigurationImpact,
   type QaWorkItem
 } from "@/components/qa/QaWorkCard";
 import { requireProjectRole } from "@/lib/auth";
+import { QA_CONFIGURATION_CODES } from "@/lib/configuration";
 import { query } from "@/lib/db";
-import { formatDateTime } from "@/lib/format";
 
 export default async function QaPage({
   searchParams
@@ -17,7 +18,8 @@ export default async function QaPage({
   const { user, project } = await requireProjectRole(["QA"]);
   const params = await searchParams;
 
-  const [items, reviews, documents] = await Promise.all([
+  const qaPlaceholders = QA_CONFIGURATION_CODES.map(() => "?").join(", ");
+  const [items, documents, impacts] = await Promise.all([
     query<QaWorkItem>(
       `SELECT qa.*, u.name AS assignee_name, cr.change_code, cr.title AS request_title,
               dev.title AS dev_title, dev.status AS dev_status, dev.github_branch AS dev_branch,
@@ -33,25 +35,6 @@ export default async function QaPage({
        ORDER BY qa.updated_at ASC`,
       user.is_admin ? [project.id] : [project.id, user.id]
     ),
-    query<{
-      id: number;
-      qa_work_item_id: number;
-      dev_work_item_id: number;
-      verdict: string;
-      comments: string;
-      version: number;
-      reviewer_name: string;
-      created_at: string;
-    }>(
-      `SELECT qr.*, u.name AS reviewer_name
-       FROM qa_reviews qr
-       INNER JOIN users u ON u.id = qr.reviewer_id
-       INNER JOIN work_items wi ON wi.id = qr.qa_work_item_id
-       WHERE wi.project_id = ?
-       ORDER BY qr.created_at DESC
-       LIMIT 20`,
-      [project.id]
-    ),
     query<DevDocument>(
       `SELECT d.id, d.work_item_id, d.file_name, u.name AS uploaded_by_name, d.created_at
        FROM documents d
@@ -59,6 +42,21 @@ export default async function QaPage({
        WHERE d.project_id = ? AND d.doc_type = 'DEV_DOCUMENTATION'
        ORDER BY d.created_at DESC`,
       [project.id]
+    ),
+    query<QaConfigurationImpact>(
+      `SELECT cri.id, cri.change_request_id, cri.status, cri.old_version, cri.new_version,
+              cri.deliverable_notes, cri.document_id, pci.element_code,
+              pci.name AS item_name, pci.category AS item_category, pci.current_version,
+              pci.current_document_id, d.file_name AS document_file_name,
+              current_doc.file_name AS current_document_file_name
+       FROM change_request_configuration_impacts cri
+       INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+       LEFT JOIN documents d ON d.id = cri.document_id
+       LEFT JOIN documents current_doc ON current_doc.id = pci.current_document_id
+       WHERE pci.project_id = ?
+         AND pci.element_code IN (${qaPlaceholders})
+       ORDER BY pci.category, pci.name`,
+      [project.id, ...QA_CONFIGURATION_CODES]
     )
   ]);
   const openItemId = Number(params.item || 0);
@@ -70,6 +68,8 @@ export default async function QaPage({
         <div className="error-banner">
           {params.error === "evidence"
             ? "La revision QA necesita comentarios y evidencia adjunta."
+            : params.error === "config-items"
+            ? "Completa todos los elementos SCM de QA antes de aprobar."
             : "La revision necesita comentarios."}
         </div>
       ) : null}
@@ -82,6 +82,7 @@ export default async function QaPage({
                 key={item.id}
                 item={item}
                 documents={documents.filter((document) => document.work_item_id === item.parent_work_item_id)}
+                impacts={impacts.filter((impact) => impact.change_request_id === item.change_request_id)}
                 defaultOpen={openItemId === item.id}
               />
             ))}
@@ -91,38 +92,6 @@ export default async function QaPage({
         )}
       </Panel>
 
-      <Panel id="historial-qa" title="Historial QA">
-        {reviews.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>QA</th>
-                  <th>DEV</th>
-                  <th>Veredicto</th>
-                  <th>Version</th>
-                  <th>Comentarios</th>
-                  <th>Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reviews.map((review) => (
-                  <tr key={review.id}>
-                    <td>#{review.qa_work_item_id}</td>
-                    <td>#{review.dev_work_item_id}</td>
-                    <td>{review.verdict}</td>
-                    <td>V{review.version}</td>
-                    <td>{review.comments}</td>
-                    <td>{formatDateTime(review.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <EmptyState title="Sin revisiones">Aun no se registran aprobaciones o rechazos.</EmptyState>
-        )}
-      </Panel>
     </AppShell>
   );
 }

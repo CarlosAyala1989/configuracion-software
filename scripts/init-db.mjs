@@ -61,8 +61,16 @@ const developerConfigurationCodes = [
   "BUILD_SCRIPTS",
   "IAC",
   "CI_CD_PIPELINES",
-  "AUTOMATED_TESTS",
   "AUDIT_LOGS"
+];
+
+const qaConfigurationCodes = [
+  "TRACEABILITY_MATRIX",
+  "QA_EVIDENCE",
+  "TEST_DATA",
+  "TEST_CASES",
+  "AUTOMATED_TESTS",
+  "DEFECT_REPORTS"
 ];
 
 const ddl = [
@@ -143,12 +151,14 @@ const ddl = [
     name VARCHAR(190) NOT NULL,
     category VARCHAR(120) NOT NULL,
     methodology VARCHAR(40) NOT NULL,
-    current_version INT UNSIGNED NOT NULL DEFAULT 1,
+    current_version INT UNSIGNED NOT NULL DEFAULT 0,
+    current_document_id BIGINT UNSIGNED NULL,
     active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_project_configuration_item (project_id, element_code),
     KEY idx_project_configuration_category (project_id, category),
+    KEY idx_project_configuration_document (current_document_id),
     CONSTRAINT fk_project_configuration_item_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
   ) ${tableOptions}`,
   `CREATE TABLE IF NOT EXISTS project_configuration_dependencies (
@@ -518,6 +528,59 @@ async function backfillDeveloperConfigurationImpacts(db) {
   );
 }
 
+async function backfillQaConfigurationImpacts(db) {
+  const placeholders = qaConfigurationCodes.map(() => "?").join(", ");
+  await db.execute(
+    `INSERT INTO change_request_configuration_impacts
+     (change_request_id, configuration_item_id, source_item_id, impact_type, reason, old_version)
+     SELECT DISTINCT cr.id, pci.id, NULL, 'DIRECT', ?, pci.current_version
+     FROM work_items wi
+     INNER JOIN change_requests cr ON cr.id = wi.change_request_id
+     INNER JOIN project_configuration_items pci ON pci.project_id = cr.project_id
+     WHERE wi.type = 'QA'
+       AND wi.status IN ('BLOCKED','QA_READY','QA_ACTIVE')
+       AND cr.status <> 'CLOSED_APPROVED'
+       AND pci.active = 1
+       AND pci.element_code IN (${placeholders})
+     ON DUPLICATE KEY UPDATE reason = VALUES(reason)`,
+    ["Elemento SCM bajo responsabilidad de QA.", ...qaConfigurationCodes]
+  );
+}
+
+async function migrateConfigurationBaselines(db) {
+  await ensureColumn(
+    db,
+    "project_configuration_items",
+    "current_document_id",
+    "current_document_id BIGINT UNSIGNED NULL AFTER current_version"
+  );
+  await ensureIndex(
+    db,
+    "project_configuration_items",
+    "idx_project_configuration_document",
+    ["current_document_id"]
+  );
+  await db.execute(
+    `UPDATE project_configuration_items pci
+     SET pci.current_document_id = (
+       SELECT cri.document_id
+       FROM change_request_configuration_impacts cri
+       WHERE cri.configuration_item_id = pci.id
+         AND cri.status = 'CHANGED'
+         AND cri.document_id IS NOT NULL
+       ORDER BY COALESCE(cri.resolved_at, cri.created_at) DESC, cri.id DESC
+       LIMIT 1
+     )
+     WHERE pci.current_document_id IS NULL`
+  );
+  await db.execute(
+    "UPDATE project_configuration_items SET current_version = 0 WHERE current_document_id IS NULL"
+  );
+  await db.execute(
+    "ALTER TABLE project_configuration_items MODIFY current_version INT UNSIGNED NOT NULL DEFAULT 0"
+  );
+}
+
 async function ensureColumn(db, table, column, definition) {
   const [rows] = await db.execute(
     `SELECT COUNT(*) AS total
@@ -713,11 +776,13 @@ async function ensureCompatibleSchema(db) {
     "document_id",
     "document_id BIGINT UNSIGNED NULL AFTER deliverable_notes"
   );
+  await migrateConfigurationBaselines(db);
   await migrateProjectRequestNumbers(db);
   await ensureChangeRequestDelivery(db);
   await seedConfigurationTemplates(db);
   await backfillProjectConfigurationItems(db);
   await backfillDeveloperConfigurationImpacts(db);
+  await backfillQaConfigurationImpacts(db);
 }
 
 async function main() {

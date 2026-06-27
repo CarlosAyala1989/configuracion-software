@@ -43,12 +43,16 @@ export default async function ConfigurationPage() {
       name: string;
       category: string;
       current_version: number;
+      current_document_id: number | null;
+      current_document_file_name: string | null;
       updated_at: string;
     }>(
-      `SELECT id, name, category, current_version, updated_at
-       FROM project_configuration_items
-       WHERE project_id = ? AND active = 1
-       ORDER BY category, name`,
+      `SELECT pci.id, pci.name, pci.category, pci.current_version, pci.current_document_id,
+              d.file_name AS current_document_file_name, pci.updated_at
+       FROM project_configuration_items pci
+       LEFT JOIN documents d ON d.id = pci.current_document_id
+       WHERE pci.project_id = ? AND pci.active = 1
+       ORDER BY pci.category, pci.name`,
       [project.id]
     ),
     query<{
@@ -130,6 +134,7 @@ export default async function ConfigurationPage() {
                   <th>Elemento</th>
                   <th>Categoria</th>
                   <th>Version</th>
+                  <th>Documento vigente</th>
                   <th>Actualizacion</th>
                 </tr>
               </thead>
@@ -138,7 +143,16 @@ export default async function ConfigurationPage() {
                   <tr key={item.id}>
                     <td>{item.name}</td>
                     <td>{item.category}</td>
-                    <td>V{item.current_version}</td>
+                    <td>{item.current_document_id ? `V${item.current_version}` : "Sin entrega"}</td>
+                    <td>
+                      {item.current_document_id ? (
+                        <Link href={`/api/documents/${item.current_document_id}`}>
+                          {item.current_document_file_name || "Ver documento vigente"}
+                        </Link>
+                      ) : (
+                        <span className="muted">Pendiente</span>
+                      )}
+                    </td>
                     <td>{formatDateTime(item.updated_at)}</td>
                   </tr>
                 ))}
@@ -223,7 +237,7 @@ export default async function ConfigurationPage() {
                         </span>
                       </td>
                       <td>
-                        V{impact.old_version}
+                        {impact.old_version ? `V${impact.old_version}` : "Sin entrega"}
                         {impact.new_version ? ` -> V${impact.new_version}` : ""}
                       </td>
                       <td>

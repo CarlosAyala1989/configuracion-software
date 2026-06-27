@@ -5,8 +5,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireProjectRole } from "@/lib/auth";
-import { DEVELOPER_CONFIGURATION_CODES } from "@/lib/configuration";
-import { createDeveloperConfigurationImpacts } from "@/lib/configuration-server";
+import { DEVELOPER_CONFIGURATION_CODES, QA_CONFIGURATION_CODES } from "@/lib/configuration";
+import {
+  createDeveloperConfigurationImpacts,
+  createQaConfigurationImpacts
+} from "@/lib/configuration-server";
 import { query, transaction } from "@/lib/db";
 import { saveUploadedDocument } from "@/lib/documents";
 import { clampPercent, fileValue, nullableNumber, nullableText, numberValue, textValue } from "@/lib/forms";
@@ -70,6 +73,7 @@ export async function createDevBacklogItemAction(formData: FormData) {
     if (claim.affectedRows !== 1) return null;
 
     await createDeveloperConfigurationImpacts(connection, project.id, requestId);
+    await createQaConfigurationImpacts(connection, project.id, requestId);
 
     const [devInsert] = await connection.execute<ResultSetHeader>(
       `INSERT INTO work_items
@@ -171,8 +175,10 @@ export async function developerProgressAction(formData: FormData) {
       status: string;
       configuration_item_id: number;
       item_name: string;
+      current_document_id: number | null;
     }>(
-      `SELECT cri.id, cri.status, cri.configuration_item_id, pci.name AS item_name
+      `SELECT cri.id, cri.status, cri.configuration_item_id, pci.name AS item_name,
+              pci.current_document_id
        FROM change_request_configuration_impacts cri
        INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
        WHERE cri.change_request_id = ?
@@ -211,7 +217,8 @@ export async function developerProgressAction(formData: FormData) {
         (impact) =>
           !["changed", "no_change"].includes(impact.resolution) ||
           !impact.notes ||
-          (impact.resolution === "changed" && !impact.deliverable)
+          (impact.resolution === "changed" && !impact.deliverable) ||
+          (!impact.current_document_id && impact.resolution !== "changed")
       ))
   ) {
     redirect(`/developer?error=config-items&item=${workItemId}`);
@@ -251,7 +258,7 @@ export async function developerProgressAction(formData: FormData) {
       for (const impact of pendingImpactResolutions) {
         const [impactRows] = await connection.execute<RowDataPacket[]>(
           `SELECT cri.id, cri.status, pci.id AS configuration_item_id,
-                  pci.name AS item_name, pci.current_version
+                  pci.name AS item_name, pci.current_version, pci.current_document_id
            FROM change_request_configuration_impacts cri
            INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
            WHERE cri.id = ? AND cri.change_request_id = ?
@@ -262,8 +269,9 @@ export async function developerProgressAction(formData: FormData) {
         if (!currentImpact || currentImpact.status !== "PENDING") continue;
 
         if (impact.resolution === "changed") {
-          const oldVersion = Number(currentImpact.current_version || 1);
-          const newVersion = oldVersion + 1;
+          const hasBaseline = Boolean(currentImpact.current_document_id);
+          const oldVersion = hasBaseline ? Number(currentImpact.current_version || 0) : 0;
+          const newVersion = hasBaseline ? oldVersion + 1 : 1;
           const documentId = await saveUploadedDocument({
             file: impact.deliverable,
             projectId: project.id,
@@ -274,8 +282,10 @@ export async function developerProgressAction(formData: FormData) {
             connection
           });
           await connection.execute(
-            "UPDATE project_configuration_items SET current_version = ? WHERE id = ?",
-            [newVersion, currentImpact.configuration_item_id]
+            `UPDATE project_configuration_items
+             SET current_version = ?, current_document_id = ?
+             WHERE id = ?`,
+            [newVersion, documentId, currentImpact.configuration_item_id]
           );
           await connection.execute(
             `UPDATE change_request_configuration_impacts
@@ -290,16 +300,19 @@ export async function developerProgressAction(formData: FormData) {
             [
               item.change_request_id,
               user.id,
-              `${currentImpact.item_name}: V${oldVersion} -> V${newVersion}. ${impact.notes}`
+              `${currentImpact.item_name}: ${oldVersion ? `V${oldVersion}` : "sin entrega"} -> V${newVersion}. ${impact.notes}`
             ]
           );
         } else {
+          if (!currentImpact.current_document_id) {
+            throw new Error(`El elemento ${currentImpact.item_name} aun no tiene una entrega inicial.`);
+          }
           await connection.execute(
             `UPDATE change_request_configuration_impacts
-             SET status = 'NO_CHANGE', new_version = NULL, deliverable_notes = ?,
+             SET status = 'NO_CHANGE', new_version = NULL, deliverable_notes = ?, document_id = ?,
                  resolved_by = ?, resolved_at = NOW()
              WHERE id = ?`,
-            [impact.notes, user.id, impact.id]
+            [impact.notes, currentImpact.current_document_id, user.id, impact.id]
           );
           await connection.execute(
             `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
@@ -376,6 +389,60 @@ export async function qaReviewAction(formData: FormData) {
   const devItem = qaItem.parent_work_item_id ? await getWorkItem(qaItem.parent_work_item_id) : null;
   if (!devItem) redirect("/qa");
 
+  const qaPlaceholders = QA_CONFIGURATION_CODES.map(() => "?").join(", ");
+  const [qaImpacts, expectedQaItemRows] = await Promise.all([
+    query<{
+      id: number;
+      status: string;
+      configuration_item_id: number;
+      element_code: string;
+      item_name: string;
+      current_document_id: number | null;
+    }>(
+      `SELECT cri.id, cri.status, cri.configuration_item_id, pci.element_code,
+              pci.name AS item_name, pci.current_document_id
+       FROM change_request_configuration_impacts cri
+       INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+       WHERE cri.change_request_id = ?
+         AND pci.element_code IN (${qaPlaceholders})
+       ORDER BY pci.category, pci.name`,
+      [qaItem.change_request_id, ...QA_CONFIGURATION_CODES]
+    ),
+    query<{ total: number }>(
+      `SELECT COUNT(*) AS total
+       FROM project_configuration_items
+       WHERE project_id = ?
+         AND active = 1
+         AND element_code IN (${qaPlaceholders})`,
+      [project.id, ...QA_CONFIGURATION_CODES]
+    )
+  ]);
+  const pendingQaResolutions = qaImpacts
+    .filter((impact) => impact.status === "PENDING")
+    .map((impact) => ({
+      ...impact,
+      resolution: textValue(formData, `impact_resolution_${impact.id}`),
+      notes: textValue(formData, `impact_notes_${impact.id}`),
+      deliverable:
+        impact.element_code === "QA_EVIDENCE"
+          ? evidence
+          : fileValue(formData, `impact_file_${impact.id}`)
+    }));
+
+  if (
+    verdict === "approve" &&
+    (qaImpacts.length !== Number(expectedQaItemRows[0]?.total || 0) ||
+      pendingQaResolutions.some(
+        (impact) =>
+          !["changed", "no_change"].includes(impact.resolution) ||
+          !impact.notes ||
+          (impact.resolution === "changed" && !impact.deliverable) ||
+          (!impact.current_document_id && impact.resolution !== "changed")
+      ))
+  ) {
+    redirect(`/qa?error=config-items&item=${qaWorkItemId}`);
+  }
+
   await transaction(async (connection) => {
     const nextStatus = verdict === "approve" ? "QA_APPROVED" : "BLOCKED";
     await connection.execute(
@@ -391,7 +458,7 @@ export async function qaReviewAction(formData: FormData) {
       ]
     );
 
-    await saveUploadedDocument({
+    const evidenceDocumentId = await saveUploadedDocument({
       file: evidence,
       projectId: project.id,
       changeRequestId: qaItem.change_request_id,
@@ -402,6 +469,84 @@ export async function qaReviewAction(formData: FormData) {
     });
 
     if (verdict === "approve") {
+      if (!evidenceDocumentId) throw new Error("La evidencia QA es obligatoria.");
+
+      for (const impact of pendingQaResolutions) {
+        const [impactRows] = await connection.execute<RowDataPacket[]>(
+          `SELECT cri.id, cri.status, pci.id AS configuration_item_id, pci.element_code,
+                  pci.name AS item_name, pci.current_version, pci.current_document_id
+           FROM change_request_configuration_impacts cri
+           INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+           WHERE cri.id = ? AND cri.change_request_id = ?
+           FOR UPDATE`,
+          [impact.id, qaItem.change_request_id]
+        );
+        const currentImpact = impactRows[0];
+        if (!currentImpact || currentImpact.status !== "PENDING") continue;
+
+        if (impact.resolution === "changed") {
+          const hasBaseline = Boolean(currentImpact.current_document_id);
+          const oldVersion = hasBaseline ? Number(currentImpact.current_version || 0) : 0;
+          const newVersion = hasBaseline ? oldVersion + 1 : 1;
+          const documentId =
+            currentImpact.element_code === "QA_EVIDENCE"
+              ? evidenceDocumentId
+              : await saveUploadedDocument({
+                  file: impact.deliverable,
+                  projectId: project.id,
+                  changeRequestId: qaItem.change_request_id,
+                  workItemId: qaWorkItemId,
+                  uploadedBy: user.id,
+                  docType: "CONFIGURATION_DELIVERABLE",
+                  connection
+                });
+          if (!documentId) throw new Error(`Falta el entregable de ${currentImpact.item_name}.`);
+
+          await connection.execute(
+            `UPDATE project_configuration_items
+             SET current_version = ?, current_document_id = ?
+             WHERE id = ?`,
+            [newVersion, documentId, currentImpact.configuration_item_id]
+          );
+          await connection.execute(
+            `UPDATE change_request_configuration_impacts
+             SET status = 'CHANGED', old_version = ?, new_version = ?, deliverable_notes = ?,
+                 document_id = ?, resolved_by = ?, resolved_at = NOW()
+             WHERE id = ?`,
+            [oldVersion, newVersion, impact.notes, documentId, user.id, impact.id]
+          );
+          await connection.execute(
+            `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
+             VALUES (?, ?, 'ECS_VERSIONADO_QA', 'QA_WAITING', 'QA_WAITING', ?)`,
+            [
+              qaItem.change_request_id,
+              user.id,
+              `${currentImpact.item_name}: ${oldVersion ? `V${oldVersion}` : "sin entrega"} -> V${newVersion}. ${impact.notes}`
+            ]
+          );
+        } else {
+          if (!currentImpact.current_document_id) {
+            throw new Error(`El elemento ${currentImpact.item_name} aun no tiene una entrega inicial.`);
+          }
+          await connection.execute(
+            `UPDATE change_request_configuration_impacts
+             SET status = 'NO_CHANGE', new_version = NULL, deliverable_notes = ?, document_id = ?,
+                 resolved_by = ?, resolved_at = NOW()
+             WHERE id = ?`,
+            [impact.notes, currentImpact.current_document_id, user.id, impact.id]
+          );
+          await connection.execute(
+            `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
+             VALUES (?, ?, 'ECS_REUTILIZADO_QA', 'QA_WAITING', 'QA_WAITING', ?)`,
+            [
+              qaItem.change_request_id,
+              user.id,
+              `${currentImpact.item_name}: se reutiliza V${currentImpact.current_version}. ${impact.notes}`
+            ]
+          );
+        }
+      }
+
       await connection.execute("UPDATE work_items SET status = 'QA_APPROVED' WHERE id = ?", [
         qaWorkItemId
       ]);
@@ -477,6 +622,8 @@ export async function qaReviewAction(formData: FormData) {
   });
 
   revalidatePath("/qa");
+  revalidatePath(`/requests/${qaItem.change_request_id}`);
+  revalidatePath("/configuration");
   redirect("/qa?ok=review");
 }
 

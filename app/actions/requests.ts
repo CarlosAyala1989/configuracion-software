@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { canUseRole, getActiveProject, requireProjectRole, requireUser } from "@/lib/auth";
+import { isDeveloperConfigurationCode, isQaConfigurationCode } from "@/lib/configuration";
 import { query, transaction } from "@/lib/db";
 import { saveUploadedDocument } from "@/lib/documents";
 import { fileValue, nullableNumber, nullableText, numberValue, textValue } from "@/lib/forms";
@@ -318,7 +319,9 @@ export async function pmSendToRequesterAction(formData: FormData) {
   const requestId = numberValue(formData, "request_id");
   const comment = textValue(formData, "comment");
   const request = await getRequestForUpdate(requestId);
-  if (!request || request.project_id !== project.id || request.status !== "PM_FINAL_REVIEW") redirect("/pm");
+  if (!request || request.project_id !== project.id || request.status !== "PM_FINAL_REVIEW") {
+    redirect("/pm/closures");
+  }
 
   await transaction(async (connection) => {
     await connection.execute("UPDATE change_requests SET status = 'REQUESTER_VALIDATION' WHERE id = ?", [
@@ -341,7 +344,8 @@ export async function pmSendToRequesterAction(formData: FormData) {
   });
 
   revalidatePath("/pm");
-  redirect("/pm?ok=sent-requester");
+  revalidatePath("/pm/closures");
+  redirect("/pm/closures?ok=sent-requester");
 }
 
 export async function requesterFinalDecisionAction(formData: FormData) {
@@ -410,7 +414,7 @@ export async function requesterFinalDecisionAction(formData: FormData) {
 
 export async function resolveConfigurationImpactAction(formData: FormData) {
   const user = await requireUser();
-  const { project } = await getActiveProject(user);
+  const { project, role } = await getActiveProject(user);
   const impactId = numberValue(formData, "impact_id");
   const resolution = textValue(formData, "resolution");
   const deliverableNotes = textValue(formData, "deliverable_notes");
@@ -426,10 +430,12 @@ export async function resolveConfigurationImpactAction(formData: FormData) {
     request_status: string;
     item_name: string;
     current_version: number;
+    current_document_id: number | null;
+    element_code: string;
   }>(
     `SELECT cri.id, cri.status, cri.change_request_id, cri.configuration_item_id,
             cr.project_id, cr.status AS request_status,
-            pci.name AS item_name, pci.current_version
+            pci.name AS item_name, pci.current_version, pci.current_document_id, pci.element_code
      FROM change_request_configuration_impacts cri
      INNER JOIN change_requests cr ON cr.id = cri.change_request_id
      INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
@@ -440,6 +446,10 @@ export async function resolveConfigurationImpactAction(formData: FormData) {
   const impact = rows[0];
   if (!impact) redirect("/requests");
   if (!user.is_admin && project?.id !== impact.project_id) redirect("/dashboard");
+  const ownsImpact =
+    (canUseRole(user, role, ["DESARROLLADOR"]) && isDeveloperConfigurationCode(impact.element_code)) ||
+    (canUseRole(user, role, ["QA"]) && isQaConfigurationCode(impact.element_code));
+  if (!user.is_admin && !ownsImpact) redirect(`/requests/${impact.change_request_id}`);
   if (impact.request_status === "CLOSED_APPROVED") {
     redirect(`/requests/${impact.change_request_id}`);
   }
@@ -452,11 +462,15 @@ export async function resolveConfigurationImpactAction(formData: FormData) {
   if (resolution === "changed" && !deliverable) {
     redirect(`/requests/${impact.change_request_id}?error=config-deliverable`);
   }
+  if (resolution === "no_change" && !impact.current_document_id) {
+    redirect(`/requests/${impact.change_request_id}?error=config-first-delivery`);
+  }
 
   await transaction(async (connection) => {
     if (resolution === "changed") {
-      const oldVersion = Number(impact.current_version || 1);
-      const newVersion = oldVersion + 1;
+      const hasBaseline = Boolean(impact.current_document_id);
+      const oldVersion = hasBaseline ? Number(impact.current_version || 0) : 0;
+      const newVersion = hasBaseline ? oldVersion + 1 : 1;
       const documentId = await saveUploadedDocument({
         file: deliverable,
         projectId: impact.project_id,
@@ -466,8 +480,10 @@ export async function resolveConfigurationImpactAction(formData: FormData) {
         connection
       });
       await connection.execute(
-        "UPDATE project_configuration_items SET current_version = ? WHERE id = ?",
-        [newVersion, impact.configuration_item_id]
+        `UPDATE project_configuration_items
+         SET current_version = ?, current_document_id = ?
+         WHERE id = ?`,
+        [newVersion, documentId, impact.configuration_item_id]
       );
       await connection.execute(
         `UPDATE change_request_configuration_impacts
@@ -490,9 +506,10 @@ export async function resolveConfigurationImpactAction(formData: FormData) {
     } else {
       await connection.execute(
         `UPDATE change_request_configuration_impacts
-         SET status = 'NO_CHANGE', new_version = NULL, deliverable_notes = ?, resolved_by = ?, resolved_at = NOW()
+         SET status = 'NO_CHANGE', new_version = NULL, deliverable_notes = ?, document_id = ?,
+             resolved_by = ?, resolved_at = NOW()
          WHERE id = ?`,
-        [deliverableNotes, user.id, impact.id]
+        [deliverableNotes, impact.current_document_id, user.id, impact.id]
       );
       await connection.execute(
         `INSERT INTO audit_events (change_request_id, actor_id, action, from_status, to_status, comment)
