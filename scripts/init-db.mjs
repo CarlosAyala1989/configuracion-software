@@ -40,7 +40,8 @@ const systemRoles = [
   ["CCB", "CCB", "CCB"],
   ["LIDER_TECNICO", "Lider tecnico", "LIDER_TECNICO"],
   ["DESARROLLADOR", "Desarrollador", "DESARROLLADOR"],
-  ["QA", "QA", "QA"]
+  ["QA", "QA", "QA"],
+  ["BIBLIOTECARIO", "Bibliotecario", "BIBLIOTECARIO"]
 ];
 
 const developerConfigurationCodes = [
@@ -581,6 +582,43 @@ async function migrateConfigurationBaselines(db) {
   );
 }
 
+async function normalizeConfigurationVersionHistory(db) {
+  const [rows] = await db.execute(
+    `SELECT id, configuration_item_id, document_id
+     FROM change_request_configuration_impacts
+     WHERE status = 'CHANGED'
+       AND document_id IS NOT NULL
+     ORDER BY configuration_item_id, COALESCE(resolved_at, created_at), id`
+  );
+  const versionsByItem = new Map();
+
+  for (const row of rows) {
+    const itemId = Number(row.configuration_item_id);
+    const versions = versionsByItem.get(itemId) || [];
+    versions.push(row);
+    versionsByItem.set(itemId, versions);
+  }
+
+  for (const [itemId, versions] of versionsByItem) {
+    for (let index = 0; index < versions.length; index += 1) {
+      await db.execute(
+        `UPDATE change_request_configuration_impacts
+         SET old_version = ?, new_version = ?
+         WHERE id = ?`,
+        [index, index + 1, versions[index].id]
+      );
+    }
+
+    const current = versions[versions.length - 1];
+    await db.execute(
+      `UPDATE project_configuration_items
+       SET current_version = ?, current_document_id = ?
+       WHERE id = ?`,
+      [versions.length, current.document_id, itemId]
+    );
+  }
+}
+
 async function ensureColumn(db, table, column, definition) {
   const [rows] = await db.execute(
     `SELECT COUNT(*) AS total
@@ -777,6 +815,7 @@ async function ensureCompatibleSchema(db) {
     "document_id BIGINT UNSIGNED NULL AFTER deliverable_notes"
   );
   await migrateConfigurationBaselines(db);
+  await normalizeConfigurationVersionHistory(db);
   await migrateProjectRequestNumbers(db);
   await ensureChangeRequestDelivery(db);
   await seedConfigurationTemplates(db);

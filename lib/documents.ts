@@ -75,8 +75,21 @@ export async function getDocumentsForChange(changeRequestId: number) {
     mime_type: string;
     size_bytes: number;
     created_at: string;
+    is_configuration_version: number;
+    is_current_configuration_version: number;
   }>(
-    `SELECT d.id, d.work_item_id, u.name AS uploaded_by_name, d.doc_type, d.file_name, d.mime_type, d.size_bytes, d.created_at
+    `SELECT d.id, d.work_item_id, u.name AS uploaded_by_name, d.doc_type,
+            d.file_name, d.mime_type, d.size_bytes, d.created_at,
+            EXISTS(
+              SELECT 1
+              FROM change_request_configuration_impacts cri
+              WHERE cri.document_id = d.id AND cri.status = 'CHANGED'
+            ) AS is_configuration_version,
+            EXISTS(
+              SELECT 1
+              FROM project_configuration_items pci
+              WHERE pci.current_document_id = d.id
+            ) AS is_current_configuration_version
      FROM documents d
      INNER JOIN users u ON u.id = d.uploaded_by
      WHERE d.change_request_id = ?

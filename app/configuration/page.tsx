@@ -18,7 +18,8 @@ const configurationRoles: ProjectRole[] = [
   "CCB",
   "LIDER_TECNICO",
   "DESARROLLADOR",
-  "QA"
+  "QA",
+  "BIBLIOTECARIO"
 ];
 
 export default async function ConfigurationPage() {

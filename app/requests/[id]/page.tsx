@@ -41,7 +41,8 @@ const configurationRoles: ProjectRole[] = [
   "CCB",
   "LIDER_TECNICO",
   "DESARROLLADOR",
-  "QA"
+  "QA",
+  "BIBLIOTECARIO"
 ];
 
 export default async function RequestDetailPage({
@@ -196,6 +197,14 @@ export default async function RequestDetailPage({
   const paramsError = paramsValue.error;
   const requesterCanAct =
     canUseRole(user, role, ["SOLICITANTE"]) && request.requester_id === user.id;
+  const canViewHistoricalVersions =
+    user.is_admin || canUseRole(user, role, ["BIBLIOTECARIO"]);
+  const visibleDocuments = documents.filter(
+    (document) =>
+      canViewHistoricalVersions ||
+      !document.is_configuration_version ||
+      document.is_current_configuration_version
+  );
   const backHref = requesterCanAct ? "/requests/mine" : "/dashboard";
   const backLabel = requesterCanAct ? "Volver a mis solicitudes" : "Volver al dashboard";
 
@@ -338,7 +347,9 @@ export default async function RequestDetailPage({
                         {impact.deliverable_notes}
                       </p>
                     ) : null}
-                    {impact.document_id && impact.document_file_name ? (
+                    {impact.document_id &&
+                    impact.document_file_name &&
+                    (canViewHistoricalVersions || impact.document_id === impact.current_document_id) ? (
                       <div className="doc-list">
                         <Link href={`/api/documents/${impact.document_id}`}>
                           <span>{impact.document_file_name}</span>
@@ -486,9 +497,9 @@ export default async function RequestDetailPage({
 
       <section className="grid grid-2">
         <Panel title="Documentos">
-          {documents.length ? (
+          {visibleDocuments.length ? (
             <div className="doc-list">
-              {documents.map((doc) => (
+              {visibleDocuments.map((doc) => (
                 <Link key={doc.id} href={`/api/documents/${doc.id}`}>
                   <span>{doc.file_name}</span>
                   <small>{doc.doc_type} · {doc.uploaded_by_name}</small>

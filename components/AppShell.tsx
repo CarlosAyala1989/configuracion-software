@@ -7,6 +7,7 @@ import {
   GitBranch,
   History,
   LayoutDashboard,
+  Library,
   ListChecks,
   LogOut,
   Network,
@@ -15,7 +16,8 @@ import {
   UserCheck,
   UserCog,
   UserPlus,
-  UsersRound
+  UsersRound,
+  Files
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -40,7 +42,8 @@ const configurationRoles: ProjectRole[] = [
   "CCB",
   "LIDER_TECNICO",
   "DESARROLLADOR",
-  "QA"
+  "QA",
+  "BIBLIOTECARIO"
 ];
 
 const navItems: NavItem[] = [
@@ -58,6 +61,8 @@ const navItems: NavItem[] = [
   { href: "/developer/reports", label: "Mis reportes", icon: <History size={18} />, roles: ["DESARROLLADOR"] },
   { href: "/qa", label: "Backlog QA", icon: <ClipboardCheck size={18} />, roles: ["QA"] },
   { href: "/qa/history", label: "Historial QA", icon: <History size={18} />, roles: ["QA"] },
+  { href: "/librarian/versions", label: "Versiones SCM", icon: <Library size={18} />, roles: ["BIBLIOTECARIO"] },
+  { href: "/librarian/documents", label: "Documentos", icon: <Files size={18} />, roles: ["BIBLIOTECARIO"] },
   { href: "/admin/users", label: "Crear usuarios", icon: <UserPlus size={18} />, adminOnly: true },
   { href: "/admin/projects", label: "Crear proyectos", icon: <FolderPlus size={18} />, adminOnly: true },
   { href: "/admin/assignments", label: "Asignar roles", icon: <UserCog size={18} />, adminOnly: true },

@@ -4,7 +4,8 @@ export const PROJECT_ROLES = [
   "CCB",
   "LIDER_TECNICO",
   "DESARROLLADOR",
-  "QA"
+  "QA",
+  "BIBLIOTECARIO"
 ] as const;
 
 export type ProjectRole = (typeof PROJECT_ROLES)[number];
@@ -17,7 +18,8 @@ export const ROLE_LABELS: Record<ProjectRole, string> = {
   CCB: "CCB",
   LIDER_TECNICO: "Lider tecnico",
   DESARROLLADOR: "Desarrollador",
-  QA: "QA"
+  QA: "QA",
+  BIBLIOTECARIO: "Bibliotecario"
 };
 
 export type RoleDefinition = {

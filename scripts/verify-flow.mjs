@@ -20,7 +20,8 @@ const roles = [
   "CCB",
   "LIDER_TECNICO",
   "DESARROLLADOR",
-  "QA"
+  "QA",
+  "BIBLIOTECARIO"
 ];
 
 function assert(condition, message) {
@@ -44,6 +45,19 @@ async function main() {
 
   await db.beginTransaction();
   try {
+    const [librarianRoleRows] = await db.execute(
+      `SELECT code, base_role, is_system, active
+       FROM role_definitions
+       WHERE code = 'BIBLIOTECARIO'`
+    );
+    assert(
+      librarianRoleRows[0]?.base_role === "BIBLIOTECARIO" &&
+        Number(librarianRoleRows[0]?.is_system) === 1 &&
+        Number(librarianRoleRows[0]?.active) === 1,
+      "El rol Bibliotecario no esta registrado como rol predeterminado activo"
+    );
+    checks.push("rol_bibliotecario_predeterminado");
+
     for (const role of roles) {
       const [result] = await db.execute(
         "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
@@ -438,6 +452,26 @@ async function main() {
       "La segunda solicitud no reutilizo la documentacion SCM vigente"
     );
     checks.push("solicitud_posterior_reutiliza_documentacion_vigente");
+    const [versionHistoryRows] = await db.execute(
+      `SELECT pci.element_code, COUNT(*) AS total_versions,
+              MIN(cri.new_version) AS first_version, MAX(cri.new_version) AS last_version
+       FROM change_request_configuration_impacts cri
+       INNER JOIN project_configuration_items pci ON pci.id = cri.configuration_item_id
+       WHERE pci.project_id = ? AND cri.status = 'CHANGED'
+       GROUP BY pci.element_code`,
+      [projectId]
+    );
+    assert(
+      versionHistoryRows.length === 2 &&
+        versionHistoryRows.every(
+          (row) =>
+            Number(row.total_versions) === 1 &&
+            Number(row.first_version) === 1 &&
+            Number(row.last_version) === 1
+        ),
+      "El historial SCM no conserva una secuencia descargable desde V1"
+    );
+    checks.push("historial_bibliotecario_versionado_desde_v1");
     await setChange(changeB, "LIDER_TECNICO", "TL_ENVIA_PM", "TECH_LEAD_REVIEW", "PM_FINAL_REVIEW", "TL libera");
     await setChange(changeB, "JEFE_PROYECTO", "PM_ENVIA_SOLICITANTE", "PM_FINAL_REVIEW", "REQUESTER_VALIDATION", "PM envia");
     await db.execute("UPDATE change_requests SET status = 'CLOSED_APPROVED', closed_at = NOW() WHERE id = ?", [
